@@ -1,17 +1,36 @@
-# android_code
+# Make Your Vibe
 
-music & mixer
+Flutter mobile music app demo for the course project.
 
-## Getting Started
+## Current demo
 
-This project is a starting point for a Flutter application.
+- One-tap local demo login and register UI.
+- Search and play YouTube videos with YouTube Data API v3.
+- Import and play personal audio/video files from the device.
+- Local favorites, playlists, albums-style library, and user profile.
+- Demo data is stored locally as JSON. There is no backend yet.
 
-A few resources to get you started if this is your first Flutter project:
+## Run
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+Install Flutter, connect an Android device or start an emulator, then run:
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+```bash
+flutter pub get
+flutter run
+```
+
+Local MP3/video playback works without an API key.
+
+YouTube search requires a YouTube Data API v3 key:
+
+```bash
+flutter run --dart-define=YOUTUBE_API_KEY=YOUR_KEY
+```
+
+Do not commit the real API key to this repository. Each team member can provide
+their own key with `--dart-define`.
+
+## Demo login
+
+Open the Account tab and tap `Login`. The fields are prefilled and the password
+is not checked. Authentication will be connected to a backend later.
