@@ -2,7 +2,7 @@
     <uses-permission android:name="android.permission.INTERNET"/>
 
     <application
-        android:label="mucsic"
+        android:label="Make Your Vibe"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
