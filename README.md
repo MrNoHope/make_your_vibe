@@ -1,20 +1,9 @@
-# Make Your Vibe
+### MAKE YOUR VIBE
 
-Progress rebuild for Android.
-
-Current scope:
-
-- Splash, login, sign up, forgot password and OTP screens.
-- Spotify/SimpMusic-inspired music home, search, library, playlist and full player UI.
-- Local demo music library for progress report.
-- Ambient sound effects and mixer: rain, ocean, fire, wind, crickets, brown noise, cafe and space.
-- Demo profile, settings, liked songs, recent songs and saved vibe presets.
-
-Run:
-
-```bash
-flutter pub get
-flutter run
-```
-
-This version is a progress build. It does not include a real licensed music catalog, backend auth, background notification service or final production API integration yet.
+| Nhóm tính năng | Mô tả chi tiết |
+| :--- | :--- |
+| **Quản lý tài khoản** | Hệ thống xác thực người dùng với các chức năng đăng nhập, đăng ký, lấy lại mật khẩu và xác thực qua mã OTP. |
+| **Không gian âm nhạc** | Trải nghiệm nghe nhạc trực quan với giao diện Trang chủ, Tìm kiếm, Thư viện, Quản lý Playlist và Trình phát nhạc chuyên sâu. |
+| **Bộ trộn âm thanh (Ambient Mixer)** | Công cụ phối các dải âm thanh môi trường thư giãn bao gồm: tiếng mưa, sóng biển, bếp lửa, gió, dế kêu, brown noise, quán cafe và không gian vũ trụ. |
+| **Cá nhân hóa** | Quản lý Profile cá nhân, tùy chỉnh Cài đặt, lưu trữ Nhạc đã thích, xem lại Bài hát vừa nghe và lưu các bộ phối âm (Vibe) tự tạo. |
+| **Hệ thống & Trải nghiệm** | Hỗ trợ phát nhạc offline, tích hợp kho nhạc phong phú, đồng bộ dữ liệu nền tảng và hỗ trợ thông báo chạy nền khi phát nhạc. |
