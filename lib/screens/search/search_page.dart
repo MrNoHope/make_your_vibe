@@ -5,6 +5,7 @@ import '../../models/song.dart';
 import '../../widgets/common_widgets.dart';
 import '../../widgets/song_widgets.dart';
 
+// Trang tìm kiếm cho phép người dùng nhập từ khóa và lọc bài hát. 
 class SearchPage extends StatefulWidget {
   const SearchPage({
     super.key,
@@ -20,6 +21,7 @@ class SearchPage extends StatefulWidget {
 }
 
 class _SearchPageState extends State<SearchPage> {
+  // TextEditingController giữ nội dung người dùng nhập vào ô tìm kiếm để có thể lọc danh sách bài hát.
   final search = TextEditingController();
 
   @override
@@ -28,13 +30,16 @@ class _SearchPageState extends State<SearchPage> {
     super.dispose();
   }
 
+  // Getter này biến chuỗi tìm kiếm thành danh sách kết quả phù hợp để render ra UI.
   List<Song> get results {
     final query = search.text.trim().toLowerCase();
 
+    // Nếu không nhập gì thì hiển thị toàn bộ danh sách bài hát.
     if (query.isEmpty) {
       return widget.controller.songs;
     }
 
+    // Tìm trong tiêu đề, nghệ sĩ, album hoặc thể loại.
     return widget.controller.songs.where((song) {
       return song.title.toLowerCase().contains(query) ||
           song.artist.toLowerCase().contains(query) ||
@@ -45,10 +50,12 @@ class _SearchPageState extends State<SearchPage> {
 
   @override
   Widget build(BuildContext context) {
+    // Bố cục trang Search gồm một tiêu đề, ô nhập, nhóm thể loại và khu vực kết quả.
     return AppPage(
       child: ListView(
         padding: const EdgeInsets.fromLTRB(18, 8, 18, 180),
         children: [
+          // Tiêu đề trang tìm kiếm.
           const Text(
             'Search',
             style: TextStyle(
@@ -57,6 +64,7 @@ class _SearchPageState extends State<SearchPage> {
             ),
           ),
           const SizedBox(height: 14),
+          // Ô nhập là phần trung tâm của trang tìm kiếm. Mỗi lần nhập đều kích hoạt setState để cập nhật kết quả ngay lập tức.
           TextField(
             controller: search,
             onChanged: (_) => setState(() {}),
@@ -70,6 +78,7 @@ class _SearchPageState extends State<SearchPage> {
             ),
           ),
           const SizedBox(height: 22),
+          // Phần này cung cấp các thể loại gợi ý để người dùng có thể khám phá nhanh mà không cần nhập từ khóa.
           const SectionHeader(title: 'Khám phá thể loại'),
           const SizedBox(height: 12),
           Wrap(
@@ -85,6 +94,7 @@ class _SearchPageState extends State<SearchPage> {
             ],
           ),
           const SizedBox(height: 24),
+          // Đây là khu vực render danh sách bài hát phù hợp với truy vấn hiện tại.
           const SectionHeader(title: 'Kết quả'),
           const SizedBox(height: 8),
           ...results.map((song) {
