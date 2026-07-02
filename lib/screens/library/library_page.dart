@@ -17,7 +17,7 @@ class LibraryPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final liked = controller.likedSongs;
+    final liked = controller.likedSongs;  // Lấy danh sách các bài hát người dùng đã yêu thích
 
     return AppPage(
       child: ListView(
@@ -51,9 +51,10 @@ class LibraryPage extends StatelessWidget {
                 subtitle: '${controller.recentlyPlayed.length} bài hát',
                 onTap: () {},
               ),
+              // Mở màn hình chi tiết playlist Daily Mix
               LibraryCard(
                 icon: Icons.playlist_play,
-                title: 'Daily Mix',
+                title: 'Daily Mix',  
                 subtitle: 'Playlist • 248 bài hát',
                 onTap: () {
                   Navigator.of(context).push(
@@ -80,12 +81,12 @@ class LibraryPage extends StatelessWidget {
           if (liked.isEmpty)
             const EmptyPanel(text: 'Chưa có bài hát đã thích.')
           else
-            ...liked.map((song) {
+            ...liked.map((song) {   // Hiển thị thông báo nếu chưa có bài hát yêu thích
               return SongListTile(
                 controller: controller,
                 song: song,
                 onTap: () async {
-                  await controller.playSong(song);
+                  await controller.playSong(song);   // Phát bài hát được chọn và mở màn hình trình phát nhạc
                   onOpenPlayer();
                 },
               );

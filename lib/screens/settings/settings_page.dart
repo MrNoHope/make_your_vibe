@@ -16,7 +16,7 @@ class SettingsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppPage(
+    return AppPage(    // Xây dựng màn hình cài đặt của ứng dụng
       child: ListView(
         padding: const EdgeInsets.fromLTRB(18, 8, 18, 180),
         children: [
@@ -28,7 +28,7 @@ class SettingsPage extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 18),
-          SettingTile(
+          SettingTile(     // Hiển thị các tùy chọn cài đặt chung
             icon: Icons.language,
             title: 'Language',
             subtitle: 'Tiếng Việt, Tiếng Anh',
