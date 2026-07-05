@@ -1,27 +1,22 @@
 class UserProfile {
-  const UserProfile({
-    required this.name,
-    required this.email,
-    required this.studentId,
-  });
-
+  final String id;
   final String name;
   final String email;
-  final String studentId;
+  final String avatarUrl;
 
-  Map<String, dynamic> toJson() {
-    return {
-      'name': name,
-      'email': email,
-      'studentId': studentId,
-    };
-  }
+  const UserProfile({
+    this.id = '',
+    this.name = '',
+    this.email = '',
+    this.avatarUrl = '',
+  });
 
   factory UserProfile.fromJson(Map<String, dynamic> json) {
     return UserProfile(
-      name: (json['name'] ?? '').toString(),
-      email: (json['email'] ?? '').toString(),
-      studentId: (json['studentId'] ?? '').toString(),
+      id: '${json['id'] ?? ''}',
+      name: '${json['name'] ?? ''}',
+      email: '${json['email'] ?? ''}',
+      avatarUrl: '${json['avatarUrl'] ?? ''}',
     );
   }
 }

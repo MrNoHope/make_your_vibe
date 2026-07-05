@@ -1,94 +1,122 @@
 import 'package:flutter/material.dart';
 
-import '../../controllers/vibe_controller.dart';
 import '../../core/app_colors.dart';
 import '../../widgets/common_widgets.dart';
 
 class ProfileScreen extends StatelessWidget {
-  const ProfileScreen({
-    super.key,
-    required this.controller,
-  });
-
-  final VibeController controller;
+  const ProfileScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Profile'),
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(18),
+    return PageScroll(
+      child: Column(
         children: [
-          Center(
-            child: Column(
-              children: [
-                const CircleAvatar(
-                  radius: 44,
-                  backgroundColor: AppColors.green,
-                  child: Text(
-                    'MV',
-                    style: TextStyle(
-                      color: Colors.black,
-                      fontSize: 26,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 14),
-                Text(
-                  controller.userName,
-                  style: const TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                Text(
-                  controller.email,
-                  style: const TextStyle(color: AppColors.muted),
-                ),
-                const SizedBox(height: 8),
-                const StatusPill(text: 'SUBSCRIPTION ACTIVE'),
-              ],
+          const TopBar(title: 'Make Your Vibe'),
+          const SizedBox(height: 18),
+          Container(
+            width: 92,
+            height: 92,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: AppColors.green,
+                width: 2,
+              ),
+              gradient: AppColors.darkGradient,
+            ),
+            child: const Icon(
+              Icons.person_rounded,
+              size: 46,
+              color: AppColors.green,
             ),
           ),
-          const SizedBox(height: 26),
+          const SizedBox(height: 14),
           const Text(
-            'ACCOUNT DETAILS',
+            'User profile',
             style: TextStyle(
-              color: AppColors.green,
+              fontSize: 21,
               fontWeight: FontWeight.w900,
             ),
           ),
-          const SizedBox(height: 12),
-          SettingTile(
-            icon: Icons.badge,
-            title: 'Student ID',
-            subtitle: controller.studentId,
+          const SizedBox(height: 5),
+          const Text(
+            'Loaded from user backend later',
+            style: TextStyle(
+              color: AppColors.muted,
+            ),
           ),
-          SettingTile(
-            icon: Icons.email,
-            title: 'Email',
-            subtitle: controller.email,
+          const SizedBox(height: 20),
+          const BackendNotice(
+            icon: Icons.account_circle_rounded,
+            title: 'No local user data',
+            message:
+            'Name, email, avatar, premium plan, playlists and statistics will come from backend.',
           ),
           const SizedBox(height: 14),
-          Row(
-            children: const [
-              Expanded(
-                child: StatBox(
-                  value: '1,248 giờ',
-                  label: 'Tổng thời gian',
-                ),
+          const ProfileInfoTile(
+            icon: Icons.mail_rounded,
+            title: 'Email',
+            value: 'Backend pending',
+          ),
+          const ProfileInfoTile(
+            icon: Icons.favorite_rounded,
+            title: 'Liked songs',
+            value: 'Backend pending',
+          ),
+          const ProfileInfoTile(
+            icon: Icons.queue_music_rounded,
+            title: 'Playlists',
+            value: 'Backend pending',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class ProfileInfoTile extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String value;
+
+  const ProfileInfoTile({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.value,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 11),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.card,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.line),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            icon,
+            color: AppColors.green,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              title,
+              style: const TextStyle(
+                fontWeight: FontWeight.w900,
               ),
-              SizedBox(width: 12),
-              Expanded(
-                child: StatBox(
-                  value: 'Lo-fi',
-                  label: 'Nghe nhiều',
-                ),
-              ),
-            ],
+            ),
+          ),
+          Text(
+            value,
+            style: const TextStyle(
+              color: AppColors.muted,
+              fontSize: 11,
+            ),
           ),
         ],
       ),

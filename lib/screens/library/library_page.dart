@@ -1,95 +1,148 @@
 import 'package:flutter/material.dart';
 
-import '../../controllers/vibe_controller.dart';
+import '../../core/app_colors.dart';
 import '../../widgets/common_widgets.dart';
-import '../../widgets/song_widgets.dart';
-import 'playlist_detail_screen.dart';
 
 class LibraryPage extends StatelessWidget {
-  const LibraryPage({
-    super.key,
-    required this.controller,
-    required this.onOpenPlayer,
-  });
-
-  final VibeController controller;
-  final VoidCallback onOpenPlayer;
+  const LibraryPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final liked = controller.likedSongs;
-
-    return AppPage(
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(18, 8, 18, 180),
+    return PageScroll(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Thư viện',
+          const TopBar(title: 'Thư viện'),
+          const SizedBox(height: 14),
+          const LibraryTile(
+            color: AppColors.pink,
+            icon: Icons.favorite_rounded,
+            title: 'Bài hát đã thích',
+            subtitle: 'Load from user backend',
+          ),
+          const SizedBox(height: 11),
+          const LibraryTile(
+            color: AppColors.green,
+            icon: Icons.queue_music_rounded,
+            title: 'Playlist cá nhân',
+            subtitle: 'Load from user backend',
+          ),
+          const SizedBox(height: 11),
+          const LibraryTile(
+            color: AppColors.blue,
+            icon: Icons.history_rounded,
+            title: 'Nghe gần đây',
+            subtitle: 'Load from user backend',
+          ),
+          const SizedBox(height: 22),
+          SectionHeader(
+            title: 'Playlist',
+            action: 'Backend',
+            onTap: () {},
+          ),
+          const SizedBox(height: 12),
+          const PlaylistCard(),
+        ],
+      ),
+    );
+  }
+}
+
+class LibraryTile extends StatelessWidget {
+  final Color color;
+  final IconData icon;
+  final String title;
+  final String subtitle;
+
+  const LibraryTile({
+    super.key,
+    required this.color,
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(13),
+      decoration: BoxDecoration(
+        color: AppColors.card,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.line),
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            backgroundColor: color.withValues(alpha: 0.16),
+            child: Icon(
+              icon,
+              color: color,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: const TextStyle(
+                    color: AppColors.muted,
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Icon(
+            Icons.chevron_right_rounded,
+            color: AppColors.muted,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class PlaylistCard extends StatelessWidget {
+  const PlaylistCard({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.card2,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: AppColors.line),
+      ),
+      child: const Column(
+        children: [
+          AlbumBox(size: 130),
+          SizedBox(height: 12),
+          Text(
+            'Playlist backend slot',
             style: TextStyle(
-              fontSize: 28,
               fontWeight: FontWeight.w900,
             ),
           ),
-          const SizedBox(height: 18),
-          GridView.count(
-            crossAxisCount: 2,
-            childAspectRatio: 1.32,
-            mainAxisSpacing: 14,
-            crossAxisSpacing: 14,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            children: [
-              LibraryCard(
-                icon: Icons.favorite,
-                title: 'Bài hát đã thích',
-                subtitle: '${liked.length} bài hát',
-                onTap: () {},
-              ),
-              LibraryCard(
-                icon: Icons.history,
-                title: 'Gần đây',
-                subtitle: '${controller.recentlyPlayed.length} bài hát',
-                onTap: () {},
-              ),
-              LibraryCard(
-                icon: Icons.playlist_play,
-                title: 'Daily Mix',
-                subtitle: 'Playlist • 248 bài hát',
-                onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => PlaylistDetailScreen(
-                        controller: controller,
-                        onOpenPlayer: onOpenPlayer,
-                      ),
-                    ),
-                  );
-                },
-              ),
-              LibraryCard(
-                icon: Icons.spa,
-                title: 'Saved Vibes',
-                subtitle: '${controller.savedVibes.length} vibe preset',
-                onTap: () {},
-              ),
-            ],
+          SizedBox(height: 4),
+          Text(
+            'User playlists will appear here',
+            style: TextStyle(
+              color: AppColors.muted,
+              fontSize: 11,
+            ),
           ),
-          const SizedBox(height: 24),
-          const SectionHeader(title: 'Bài hát đã thích'),
-          const SizedBox(height: 8),
-          if (liked.isEmpty)
-            const EmptyPanel(text: 'Chưa có bài hát đã thích.')
-          else
-            ...liked.map((song) {
-              return SongListTile(
-                controller: controller,
-                song: song,
-                onTap: () async {
-                  await controller.playSong(song);
-                  onOpenPlayer();
-                },
-              );
-            }),
         ],
       ),
     );

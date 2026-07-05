@@ -1,5 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:make_your_vibe/app.dart';
 
 void main() {
-  testWidgets('placeholder test', (tester) async {});
+  testWidgets('App starts', (tester) async {
+    await tester.pumpWidget(const MakeYourVibeApp());
+    expect(find.text('Make Your Vibe'), findsWidgets);
+  });
 }

@@ -1,160 +1,130 @@
 import 'package:flutter/material.dart';
 
-import '../../controllers/vibe_controller.dart';
 import '../../core/app_colors.dart';
-import '../../utils/formatters.dart';
-import '../../widgets/ambient_widgets.dart';
-import '../../widgets/song_widgets.dart';
-import 'ambient_mixer_sheet.dart';
+import '../../widgets/common_widgets.dart';
 
 class PlayerScreen extends StatelessWidget {
-  const PlayerScreen({
-    super.key,
-    required this.controller,
-  });
-
-  final VibeController controller;
+  const PlayerScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final song = controller.currentSong ?? controller.songs.first;
-    final maxMs = controller.duration.inMilliseconds > 0
-        ? controller.duration.inMilliseconds.toDouble()
-        : song.duration.inMilliseconds.toDouble();
-
-    final currentMs = controller.position.inMilliseconds.clamp(0, maxMs.toInt()).toDouble();
-
-    return AnimatedBuilder(
-      animation: controller,
-      builder: (context, _) {
-        final currentSong = controller.currentSong ?? song;
-
-        return Scaffold(
-          appBar: AppBar(
-            centerTitle: true,
-            title: const Column(
-              children: [
-                Text(
-                  'PLAYING FROM PLAYLIST',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: AppColors.green,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                Text(
-                  'Daily Mix',
-                  style: TextStyle(fontSize: 14),
-                ),
-              ],
-            ),
-          ),
-          body: ListView(
-            padding: const EdgeInsets.fromLTRB(24, 12, 24, 40),
+    return Scaffold(
+      body: SafeArea(
+        child: PageScroll(
+          child: Column(
             children: [
-              Center(
-                child: CoverArt(
-                  song: currentSong,
-                  size: 280,
-                ),
-              ),
-              const SizedBox(height: 30),
               Row(
                 children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          currentSong.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          currentSong.artist,
-                          style: const TextStyle(color: AppColors.muted),
-                        ),
-                      ],
-                    ),
-                  ),
                   IconButton(
-                    onPressed: () => controller.toggleLiked(currentSong),
-                    icon: Icon(
-                      controller.isLiked(currentSong) ? Icons.favorite : Icons.favorite_border,
-                      color: controller.isLiked(currentSong) ? AppColors.green : Colors.white,
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.keyboard_arrow_down_rounded),
+                  ),
+                  const Spacer(),
+                  const Text(
+                    'PLAYING FROM BACKEND',
+                    style: TextStyle(
+                      color: AppColors.muted,
+                      fontSize: 10,
+                      letterSpacing: 1,
+                      fontWeight: FontWeight.w800,
                     ),
                   ),
-                ],
-              ),
-              const SizedBox(height: 20),
-              Slider(
-                value: currentMs,
-                min: 0,
-                max: maxMs,
-                onChanged: controller.seek,
-              ),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(formatDuration(controller.position)),
-                  Text(
-                    formatDuration(
-                      controller.duration == Duration.zero ? currentSong.duration : controller.duration,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
+                  const Spacer(),
                   IconButton(
-                    onPressed: controller.playPrevious,
-                    icon: const Icon(
-                      Icons.skip_previous,
-                      size: 42,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  IconButton(
-                    onPressed: controller.togglePlay,
-                    icon: Icon(
-                      controller.isPlaying ? Icons.pause_circle_filled : Icons.play_circle_fill,
-                      color: AppColors.green,
-                      size: 78,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  IconButton(
-                    onPressed: controller.playNext,
-                    icon: const Icon(
-                      Icons.skip_next,
-                      size: 42,
-                    ),
+                    onPressed: () {},
+                    icon: const Icon(Icons.more_vert_rounded),
                   ),
                 ],
               ),
               const SizedBox(height: 24),
-              AmbientBanner(
-                controller: controller,
-                onTap: () {
-                  showModalBottomSheet(
-                    context: context,
-                    backgroundColor: Colors.transparent,
-                    isScrollControlled: true,
-                    builder: (_) => AmbientMixerSheet(controller: controller),
-                  );
-                },
+              const AlbumBox(size: 270),
+              const SizedBox(height: 24),
+              const Text(
+                'No track loaded',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 23,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Music source backend is not connected yet',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: AppColors.soft,
+                ),
+              ),
+              const SizedBox(height: 24),
+              Slider(
+                value: 0,
+                onChanged: null,
+                activeColor: AppColors.green,
+              ),
+              const Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('0:00', style: TextStyle(color: AppColors.muted)),
+                  Text('--:--', style: TextStyle(color: AppColors.muted)),
+                ],
+              ),
+              const SizedBox(height: 22),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  IconButton(
+                    onPressed: () {},
+                    iconSize: 32,
+                    icon: const Icon(Icons.shuffle_rounded),
+                  ),
+                  const SizedBox(width: 4),
+                  IconButton(
+                    onPressed: () {},
+                    iconSize: 36,
+                    icon: const Icon(Icons.skip_previous_rounded),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    width: 72,
+                    height: 72,
+                    decoration: const BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: AppColors.green,
+                    ),
+                    child: IconButton(
+                      onPressed: () {},
+                      icon: const Icon(
+                        Icons.play_arrow_rounded,
+                        color: Colors.black,
+                        size: 42,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    onPressed: () {},
+                    iconSize: 36,
+                    icon: const Icon(Icons.skip_next_rounded),
+                  ),
+                  const SizedBox(width: 4),
+                  IconButton(
+                    onPressed: () {},
+                    iconSize: 32,
+                    icon: const Icon(Icons.repeat_rounded),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+              const BackendNotice(
+                icon: Icons.cloud_sync_rounded,
+                title: 'Audio service phase',
+                message:
+                'Background playback, queue, notification control and real stream URL will be connected after UI is finished.',
               ),
             ],
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 }

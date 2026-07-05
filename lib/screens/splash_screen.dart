@@ -9,11 +9,31 @@ class SplashScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const Scaffold(
-      backgroundColor: AppColors.background,
-      body: Center(
-        child: AppLogo(
-          size: 116,
-          showText: true,
+      body: SafeArea(
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AppLogo(size: 82),
+              SizedBox(height: 18),
+              Text(
+                'Make Your Vibe',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              SizedBox(height: 7),
+              Text(
+                'MUSIC APP DESIGN READY FOR BACKEND',
+                style: TextStyle(
+                  color: AppColors.muted,
+                  fontSize: 10,
+                  letterSpacing: 0.8,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

@@ -1,103 +1,76 @@
 import 'package:flutter/material.dart';
 
-import '../../controllers/vibe_controller.dart';
-import '../../models/song.dart';
+import '../../core/app_colors.dart';
 import '../../widgets/common_widgets.dart';
-import '../../widgets/song_widgets.dart';
 
-class SearchPage extends StatefulWidget {
-  const SearchPage({
-    super.key,
-    required this.controller,
-    required this.onOpenPlayer,
-  });
-
-  final VibeController controller;
-  final VoidCallback onOpenPlayer;
-
-  @override
-  State<SearchPage> createState() => _SearchPageState();
-}
-
-class _SearchPageState extends State<SearchPage> {
-  final search = TextEditingController();
-
-  @override
-  void dispose() {
-    search.dispose();
-    super.dispose();
-  }
-
-  List<Song> get results {
-    final query = search.text.trim().toLowerCase();
-
-    if (query.isEmpty) {
-      return widget.controller.songs;
-    }
-
-    return widget.controller.songs.where((song) {
-      return song.title.toLowerCase().contains(query) ||
-          song.artist.toLowerCase().contains(query) ||
-          song.album.toLowerCase().contains(query) ||
-          song.category.toLowerCase().contains(query);
-    }).toList();
-  }
+class SearchPage extends StatelessWidget {
+  const SearchPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return AppPage(
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(18, 8, 18, 180),
+    return PageScroll(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Search',
-            style: TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
+          const TopBar(title: 'Search'),
           const SizedBox(height: 14),
-          TextField(
-            controller: search,
-            onChanged: (_) => setState(() {}),
+          const TextField(
             decoration: InputDecoration(
-              prefixIcon: const Icon(Icons.search),
-              hintText: 'Bạn muốn nghe gì?',
-              filled: true,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(18),
-              ),
+              hintText: 'Search songs, artists, albums...',
+              prefixIcon: Icon(Icons.search_rounded),
             ),
           ),
-          const SizedBox(height: 22),
-          const SectionHeader(title: 'Khám phá thể loại'),
+          const SizedBox(height: 18),
+          SectionHeader(
+            title: 'Gợi ý tìm kiếm',
+            action: 'Backend',
+            onTap: () {},
+          ),
           const SizedBox(height: 12),
           Wrap(
-            spacing: 10,
-            runSpacing: 10,
+            spacing: 9,
+            runSpacing: 9,
             children: const [
-              GenreChip(text: 'Pop'),
-              GenreChip(text: 'Lofi'),
-              GenreChip(text: 'Study'),
-              GenreChip(text: 'Chill'),
-              GenreChip(text: 'Acoustic'),
-              GenreChip(text: 'Instrumental'),
+              SearchChip(label: 'Pop'),
+              SearchChip(label: 'Lofi'),
+              SearchChip(label: 'Study'),
+              SearchChip(label: 'Chill'),
+              SearchChip(label: 'Jazz'),
+              SearchChip(label: 'Instrumental'),
             ],
           ),
           const SizedBox(height: 24),
-          const SectionHeader(title: 'Kết quả'),
-          const SizedBox(height: 8),
-          ...results.map((song) {
-            return SongListTile(
-              controller: widget.controller,
-              song: song,
-              onTap: () async {
-                await widget.controller.playSong(song);
-                widget.onOpenPlayer();
-              },
-            );
-          }),
+          const BackendNotice(
+            icon: Icons.search_off_rounded,
+            title: 'Search backend not connected',
+            message:
+            'Real search results will appear here after the music source API is integrated.',
+          ),
         ],
+      ),
+    );
+  }
+}
+
+class SearchChip extends StatelessWidget {
+  final String label;
+
+  const SearchChip({
+    super.key,
+    required this.label,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Chip(
+      label: Text(label),
+      labelStyle: const TextStyle(
+        color: Colors.black,
+        fontWeight: FontWeight.w900,
+      ),
+      backgroundColor: AppColors.green,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(99),
       ),
     );
   }

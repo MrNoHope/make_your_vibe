@@ -1,103 +1,208 @@
 import 'package:flutter/material.dart';
 
-import '../../controllers/vibe_controller.dart';
 import '../../core/app_colors.dart';
+import '../../core/app_language.dart';
 import '../../widgets/common_widgets.dart';
 
-class SettingsPage extends StatelessWidget {
+class SettingsPage extends StatefulWidget {
+  final VoidCallback onLogout;
+
+  final bool darkMode;
+  final ValueChanged<bool> onDarkModeChanged;
+
+  final AppLanguage language;
+  final VoidCallback onLanguageChanged;
+
   const SettingsPage({
     super.key,
-    required this.controller,
     required this.onLogout,
+    required this.darkMode,
+    required this.onDarkModeChanged,
+    required this.language,
+    required this.onLanguageChanged,
   });
 
-  final VibeController controller;
-  final Future<void> Function() onLogout;
+  @override
+  State<SettingsPage> createState() => _SettingsPageState();
+}
+
+class _SettingsPageState extends State<SettingsPage> {
+  bool backgroundPlayback = true;
+  bool highQuality = true;
 
   @override
   Widget build(BuildContext context) {
-    return AppPage(
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(18, 8, 18, 180),
+    final lang = widget.language;
+
+    return PageScroll(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Settings',
-            style: TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.w900,
+          TopBar(
+            title: lang.text(
+              vi: 'Cài đặt',
+              en: 'Settings',
             ),
           ),
-          const SizedBox(height: 18),
-          SettingTile(
-            icon: Icons.language,
-            title: 'Language',
-            subtitle: 'Tiếng Việt, Tiếng Anh',
-            onTap: () {},
-          ),
-          const SettingTile(
-            icon: Icons.high_quality,
-            title: 'Audio Quality',
-            subtitle: 'Lossless',
-          ),
-          const SettingTile(
-            icon: Icons.dark_mode,
-            title: 'Theme',
-            subtitle: 'Midnight Modern',
-          ),
-          const SettingTile(
-            icon: Icons.notifications,
-            title: 'Notifications',
-            subtitle: 'Active',
-          ),
-          const SettingTile(
-            icon: Icons.privacy_tip,
-            title: 'Privacy',
-            subtitle: 'Manage account privacy',
-          ),
-          const SettingTile(
-            icon: Icons.info,
-            title: 'About App',
-            subtitle: 'Version 2.4.0 (Build 108)',
-          ),
-          const SizedBox(height: 18),
-          Container(
-            padding: const EdgeInsets.all(18),
-            decoration: BoxDecoration(
-              color: AppColors.panel,
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: AppColors.line),
+          const SizedBox(height: 14),
+          SettingsTile(
+            icon: Icons.language_rounded,
+            title: lang.text(
+              vi: 'Ngôn ngữ',
+              en: 'Language',
             ),
+            subtitle: widget.language.label,
+            trailing: IconButton(
+              onPressed: widget.onLanguageChanged,
+              icon: const Icon(Icons.swap_horiz_rounded),
+            ),
+          ),
+          SettingsTile(
+            icon: Icons.dark_mode_rounded,
+            title: lang.text(
+              vi: 'Giao diện tối',
+              en: 'Dark Mode',
+            ),
+            subtitle: widget.darkMode
+                ? lang.text(
+              vi: 'Đang dùng giao diện tối',
+              en: 'Dark theme is active',
+            )
+                : lang.text(
+              vi: 'Đang dùng giao diện sáng',
+              en: 'Light theme is active',
+            ),
+            trailing: Switch(
+              value: widget.darkMode,
+              onChanged: widget.onDarkModeChanged,
+            ),
+          ),
+          SettingsTile(
+            icon: Icons.play_circle_rounded,
+            title: lang.text(
+              vi: 'Phát nhạc nền',
+              en: 'Background Playback',
+            ),
+            subtitle: lang.text(
+              vi: 'Sẽ nối audio service ở giai đoạn sau',
+              en: 'Will connect audio service later',
+            ),
+            trailing: Switch(
+              value: backgroundPlayback,
+              onChanged: (value) {
+                setState(() {
+                  backgroundPlayback = value;
+                });
+              },
+            ),
+          ),
+          SettingsTile(
+            icon: Icons.high_quality_rounded,
+            title: lang.text(
+              vi: 'Chất lượng âm thanh',
+              en: 'Audio Quality',
+            ),
+            subtitle: lang.text(
+              vi: 'Sẽ được backend điều khiển',
+              en: 'Backend controlled',
+            ),
+            trailing: Switch(
+              value: highQuality,
+              onChanged: (value) {
+                setState(() {
+                  highQuality = value;
+                });
+              },
+            ),
+          ),
+          SettingsTile(
+            icon: Icons.cloud_rounded,
+            title: 'Backend',
+            subtitle: lang.text(
+              vi: 'Music API và User API chưa kết nối',
+              en: 'Music API and User API pending',
+            ),
+            trailing: const Icon(Icons.dns_rounded),
+          ),
+          const SizedBox(height: 14),
+          FilledButton.icon(
+            onPressed: widget.onLogout,
+            icon: const Icon(Icons.logout_rounded),
+            label: Text(
+              lang.text(
+                vi: 'Đăng xuất',
+                en: 'Logout',
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class SettingsTile extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final Widget trailing;
+
+  const SettingsTile({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.trailing,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 11),
+      padding: const EdgeInsets.fromLTRB(13, 12, 8, 12),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.card2 : Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: isDark ? AppColors.line : const Color(0xFFD4DED4),
+        ),
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 20,
+            backgroundColor: AppColors.green.withValues(alpha: 0.12),
+            child: Icon(
+              icon,
+              color: AppColors.green,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 11),
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const StatusPill(text: 'PRO'),
-                const SizedBox(height: 12),
-                const Text(
-                  'Pro Member Plan',
-                  style: TextStyle(
-                    fontSize: 20,
+                Text(
+                  title,
+                  style: const TextStyle(
                     fontWeight: FontWeight.w900,
                   ),
                 ),
-                const Text('Next billing date: November 12, 2024'),
-                const SizedBox(height: 14),
-                OutlinedButton(
-                  onPressed: () {},
-                  child: const Text('Manage Plan'),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    color: isDark ? AppColors.muted : const Color(0xFF6D786E),
+                    fontSize: 11,
+                  ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 16),
-          OutlinedButton.icon(
-            onPressed: onLogout,
-            icon: const Icon(Icons.logout),
-            label: const Text('Đăng xuất'),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.danger,
-              side: const BorderSide(color: AppColors.danger),
-            ),
-          ),
+          trailing,
         ],
       ),
     );

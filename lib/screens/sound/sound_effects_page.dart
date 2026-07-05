@@ -1,67 +1,80 @@
 import 'package:flutter/material.dart';
 
-import '../../controllers/vibe_controller.dart';
+import '../../core/app_colors.dart';
 import '../../widgets/ambient_widgets.dart';
 import '../../widgets/common_widgets.dart';
 
 class SoundEffectsPage extends StatelessWidget {
+  final VoidCallback onOpenMixer;
+
   const SoundEffectsPage({
     super.key,
-    required this.controller,
     required this.onOpenMixer,
   });
 
-  final VibeController controller;
-  final VoidCallback onOpenMixer;
-
   @override
   Widget build(BuildContext context) {
-    return AppPage(
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(18, 8, 18, 180),
+    return PageScroll(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              const Expanded(
-                child: Text(
-                  'Sound Effects',
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.w900,
+          TopBar(
+            title: 'Sound Effects',
+            action: IconButton(
+              onPressed: onOpenMixer,
+              icon: const Icon(Icons.tune_rounded),
+            ),
+          ),
+          const SizedBox(height: 14),
+          Container(
+            height: 138,
+            padding: const EdgeInsets.all(15),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(22),
+              gradient: AppColors.mainGradient,
+            ),
+            child: const Row(
+              children: [
+                Icon(
+                  Icons.graphic_eq_rounded,
+                  color: AppColors.green,
+                  size: 42,
+                ),
+                SizedBox(width: 14),
+                Expanded(
+                  child: Text(
+                    'Ambient mixer UI is ready. Sound files will be added later.',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w900,
+                      height: 1.25,
+                    ),
                   ),
                 ),
-              ),
-              StatusPill(text: '${controller.activeAmbientCount} active'),
-            ],
+              ],
+            ),
           ),
-          const SizedBox(height: 8),
-          const Text('Chọn âm nền để trộn cùng nhạc chính.'),
-          const SizedBox(height: 22),
-          AmbientBanner(
-            controller: controller,
+          const SizedBox(height: 18),
+          SectionHeader(
+            title: 'Ambient layers',
+            action: 'Mixer',
             onTap: onOpenMixer,
           ),
-          const SizedBox(height: 22),
-          const SectionHeader(title: 'HIỆU ỨNG MÔI TRƯỜNG'),
-          const SizedBox(height: 14),
-          GridView.builder(
-            itemCount: controller.ambientLayers.length,
+          const SizedBox(height: 12),
+          GridView.count(
+            crossAxisCount: 2,
+            crossAxisSpacing: 11,
+            mainAxisSpacing: 11,
+            childAspectRatio: 1.05,
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              mainAxisSpacing: 14,
-              crossAxisSpacing: 14,
-              childAspectRatio: 1.02,
-            ),
-            itemBuilder: (context, index) {
-              final layer = controller.ambientLayers[index];
-
-              return AmbientTile(
-                layer: layer,
-                onTap: () => controller.toggleAmbient(layer),
-              );
-            },
+            children: const [
+              SoundSlot(title: 'Rain slot', icon: Icons.water_drop_rounded),
+              SoundSlot(title: 'Wave slot', icon: Icons.waves_rounded),
+              SoundSlot(title: 'Fire slot', icon: Icons.local_fire_department_rounded),
+              SoundSlot(title: 'Wind slot', icon: Icons.air_rounded),
+              SoundSlot(title: 'Cafe slot', icon: Icons.local_cafe_rounded),
+              SoundSlot(title: 'Noise slot', icon: Icons.blur_on_rounded),
+            ],
           ),
         ],
       ),

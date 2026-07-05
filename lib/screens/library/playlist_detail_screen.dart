@@ -1,68 +1,44 @@
 import 'package:flutter/material.dart';
 
-import '../../controllers/vibe_controller.dart';
-import '../../widgets/auth_widgets.dart';
-import '../../widgets/song_widgets.dart';
+import '../../core/app_colors.dart';
+import '../../widgets/common_widgets.dart';
 
 class PlaylistDetailScreen extends StatelessWidget {
-  const PlaylistDetailScreen({
-    super.key,
-    required this.controller,
-    required this.onOpenPlayer,
-  });
-
-  final VibeController controller;
-  final VoidCallback onOpenPlayer;
+  const PlaylistDetailScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Playlist'),
-      ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(18, 8, 18, 120),
-        children: [
-          Center(
-            child: CoverArt(
-              song: controller.songs.first,
-              size: 190,
-            ),
+      body: SafeArea(
+        child: PageScroll(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TopBar(
+                title: 'Playlist',
+                action: IconButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const Icon(Icons.close_rounded),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const AlbumBox(size: 180),
+              const SizedBox(height: 18),
+              const Text(
+                'Playlist backend slot',
+                style: TextStyle(
+                  fontSize: 23,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'Songs will be loaded from user backend',
+                style: TextStyle(color: AppColors.soft),
+              ),
+            ],
           ),
-          const SizedBox(height: 20),
-          const Text(
-            'Daily Mix',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 30,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          const SizedBox(height: 6),
-          const Text(
-            'Playlist • Chill, Lo-fi',
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 18),
-          PrimaryButton(
-            text: 'PLAY',
-            onPressed: () async {
-              await controller.playSong(controller.songs.first);
-              onOpenPlayer();
-            },
-          ),
-          const SizedBox(height: 22),
-          ...controller.songs.map((song) {
-            return SongListTile(
-              controller: controller,
-              song: song,
-              onTap: () async {
-                await controller.playSong(song);
-                onOpenPlayer();
-              },
-            );
-          }),
-        ],
+        ),
       ),
     );
   }
