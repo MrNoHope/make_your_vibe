@@ -6,7 +6,6 @@ import 'package:just_audio/just_audio.dart';
 import '../data/demo_data.dart';
 import '../models/ambient_layer.dart';
 import '../models/song.dart';
-import '../services/user_data_service.dart';
 
 class VibeController extends ChangeNotifier {
   final AudioPlayer musicPlayer = AudioPlayer();
@@ -41,12 +40,10 @@ class VibeController extends ChangeNotifier {
   Duration position = Duration.zero;
   Duration duration = Duration.zero;
   double musicVolume = 0.70;
-  final Map<String, List<Song>> playlists = {'Daily Mix': demoSongs};
 
   String userName = 'Nguyễn Lương Nghĩa';
   String email = 'umter@st.vibe.app';
   String studentId = '2302700033';
-  UserDataService? userDataService;
 
   Future<void> init() async {
     subscriptions.add(
@@ -80,63 +77,6 @@ class VibeController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> attachUserDataService(UserDataService service) async {
-    userDataService = service;
-    await loadUserLibrary();
-  }
-
-  Future<void> loadUserLibrary() async {
-    final service = userDataService;
-
-    if (service == null) {
-      return;
-    }
-
-    final data = await service.loadLibrary(email);
-    likedSongs
-      ..clear()
-      ..addAll(_songsByIds(data.likedSongIds));
-    recentlyPlayed
-      ..clear()
-      ..addAll(_songsByIds(data.recentlyPlayedSongIds));
-
-    if (data.savedVibes.isNotEmpty) {
-      savedVibes
-        ..clear()
-        ..addAll(data.savedVibes);
-    }
-
-    playlists
-      ..clear()
-      ..addAll(_playlistsByIds(data.playlists));
-
-    if (playlists.isEmpty) {
-      playlists['Daily Mix'] = songs;
-    }
-
-    notifyListeners();
-  }
-
-  Future<void> saveUserLibrary() async {
-    final service = userDataService;
-
-    if (service == null) {
-      return;
-    }
-
-    await service.saveLibrary(
-      email,
-      UserLibraryData(
-        likedSongIds: likedSongs.map((song) => song.id).toList(),
-        recentlyPlayedSongIds: recentlyPlayed.map((song) => song.id).toList(),
-        savedVibes: List<String>.from(savedVibes),
-        playlists: playlists.map((name, playlistSongs) {
-          return MapEntry(name, playlistSongs.map((song) => song.id).toList());
-        }),
-      ),
-    );
-  }
-
   Future<void> playSong(Song song) async {
     currentSong = song;
     position = Duration.zero;
@@ -148,7 +88,6 @@ class VibeController extends ChangeNotifier {
       recentlyPlayed.removeLast();
     }
 
-    await saveUserLibrary();
     notifyListeners();
 
     try {
@@ -230,82 +169,13 @@ class VibeController extends ChangeNotifier {
     return likedSongs.any((item) => item.id == song.id);
   }
 
-  Future<void> toggleLiked(Song song) async {
+  void toggleLiked(Song song) {
     if (isLiked(song)) {
       likedSongs.removeWhere((item) => item.id == song.id);
     } else {
       likedSongs.insert(0, song);
     }
 
-    await saveUserLibrary();
-    notifyListeners();
-  }
-
-  Future<void> saveVibePreset(String name) async {
-    final value = name.trim();
-
-    if (value.isEmpty || savedVibes.contains(value)) {
-      return;
-    }
-
-    savedVibes.insert(0, value);
-    await saveUserLibrary();
-    notifyListeners();
-  }
-
-  Future<void> removeVibePreset(String name) async {
-    savedVibes.remove(name);
-    await saveUserLibrary();
-    notifyListeners();
-  }
-
-  List<Song> playlistSongs(String name) {
-    return playlists[name] ?? const [];
-  }
-
-  Future<void> createPlaylist(String name) async {
-    final value = name.trim();
-
-    if (value.isEmpty || playlists.containsKey(value)) {
-      return;
-    }
-
-    playlists[value] = [];
-    await saveUserLibrary();
-    notifyListeners();
-  }
-
-  Future<void> deletePlaylist(String name) async {
-    if (name == 'Daily Mix') {
-      return;
-    }
-
-    playlists.remove(name);
-    await saveUserLibrary();
-    notifyListeners();
-  }
-
-  Future<void> addSongToPlaylist(String playlistName, Song song) async {
-    final playlist = playlists.putIfAbsent(playlistName, () => []);
-
-    if (playlist.any((item) => item.id == song.id)) {
-      return;
-    }
-
-    playlist.add(song);
-    await saveUserLibrary();
-    notifyListeners();
-  }
-
-  Future<void> removeSongFromPlaylist(String playlistName, Song song) async {
-    final playlist = playlists[playlistName];
-
-    if (playlist == null) {
-      return;
-    }
-
-    playlist.removeWhere((item) => item.id == song.id);
-    await saveUserLibrary();
     notifyListeners();
   }
 
@@ -425,26 +295,6 @@ class VibeController extends ChangeNotifier {
     }
 
     return '${active.take(2).join(' + ')} + ${active.length - 2} lớp';
-  }
-
-  List<Song> _songsByIds(List<String> ids) {
-    final results = <Song>[];
-
-    for (final id in ids) {
-      final index = songs.indexWhere((song) => song.id == id);
-
-      if (index >= 0) {
-        results.add(songs[index]);
-      }
-    }
-
-    return results;
-  }
-
-  Map<String, List<Song>> _playlistsByIds(Map<String, List<String>> source) {
-    return source.map((name, ids) {
-      return MapEntry(name, _songsByIds(ids));
-    });
   }
 
   @override

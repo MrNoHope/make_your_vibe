@@ -7,7 +7,6 @@ import 'screens/auth/auth_screen.dart';
 import 'screens/main/main_shell.dart';
 import 'screens/splash_screen.dart';
 import 'services/local_backend_service.dart';
-import 'services/user_data_service.dart';
 
 void main() {
   runApp(const MakeYourVibeApp());
@@ -22,7 +21,6 @@ class MakeYourVibeApp extends StatefulWidget {
 
 class _MakeYourVibeAppState extends State<MakeYourVibeApp> {
   late final LocalBackendService backend;
-  late final LocalUserDataService userDataService;
   late final VibeController controller;
 
   bool loading = true;
@@ -32,22 +30,18 @@ class _MakeYourVibeAppState extends State<MakeYourVibeApp> {
   void initState() {
     super.initState();
     backend = LocalBackendService();
-    userDataService = LocalUserDataService();
     controller = VibeController();
     boot();
   }
 
   Future<void> boot() async {
     await backend.init();
-    await userDataService.init();
     await controller.init();
-    await controller.attachUserDataService(userDataService);
 
     final user = await backend.currentUser();
 
     if (user != null) {
       controller.setProfile(user.name, user.email, user.studentId);
-      await controller.loadUserLibrary();
       loggedIn = true;
     }
 
@@ -68,7 +62,6 @@ class _MakeYourVibeAppState extends State<MakeYourVibeApp> {
     }
 
     controller.setProfile(user.name, user.email, user.studentId);
-    await controller.loadUserLibrary();
 
     setState(() {
       loggedIn = true;
@@ -88,7 +81,6 @@ class _MakeYourVibeAppState extends State<MakeYourVibeApp> {
     }
 
     controller.setProfile(profile.name, profile.email, profile.studentId);
-    await controller.loadUserLibrary();
 
     setState(() {
       loggedIn = true;
