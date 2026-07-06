@@ -32,6 +32,26 @@ class Song {
     return '$minutes:${remain.toString().padLeft(2, '0')}';
   }
 
+  Song copyWith({
+    String? id,
+    String? title,
+    String? artist,
+    String? album,
+    String? coverUrl,
+    Duration? duration,
+    String? streamUrl,
+  }) {
+    return Song(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      artist: artist ?? this.artist,
+      album: album ?? this.album,
+      coverUrl: coverUrl ?? this.coverUrl,
+      duration: duration ?? this.duration,
+      streamUrl: streamUrl ?? this.streamUrl,
+    );
+  }
+
   factory Song.fromJson(Map<String, dynamic> json) {
     return Song(
       id: '${json['id'] ?? ''}',

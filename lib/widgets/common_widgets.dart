@@ -132,19 +132,23 @@ class SmallGreenButton extends StatelessWidget {
   }
 }
 
-class AlbumBox extends StatelessWidget {
+class CoverImage extends StatelessWidget {
+  final String url;
   final double size;
+  final double radius;
 
-  const AlbumBox({
+  const CoverImage({
     super.key,
+    required this.url,
     required this.size,
+    this.radius = 18,
   });
 
   @override
   Widget build(BuildContext context) {
-    final child = Container(
+    final fallback = Container(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(radius),
         gradient: AppColors.darkGradient,
         border: Border.all(color: AppColors.line),
       ),
@@ -157,6 +161,17 @@ class AlbumBox extends StatelessWidget {
       ),
     );
 
+    final child = url.trim().isEmpty
+        ? fallback
+        : ClipRRect(
+            borderRadius: BorderRadius.circular(radius),
+            child: Image.network(
+              url,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => fallback,
+            ),
+          );
+
     if (size == double.infinity) {
       return child;
     }
@@ -166,6 +181,20 @@ class AlbumBox extends StatelessWidget {
       height: size,
       child: child,
     );
+  }
+}
+
+class AlbumBox extends StatelessWidget {
+  final double size;
+
+  const AlbumBox({
+    super.key,
+    required this.size,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return CoverImage(url: '', size: size);
   }
 }
 

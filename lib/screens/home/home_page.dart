@@ -1,57 +1,90 @@
 import 'package:flutter/material.dart';
 
+import '../../controllers/vibe_controller.dart';
 import '../../core/app_colors.dart';
 import '../../widgets/common_widgets.dart';
 import '../../widgets/song_widgets.dart';
 
-class HomePage extends StatelessWidget {
+class HomePage extends StatefulWidget {
+  final VibeController controller;
   final VoidCallback onOpenPlayer;
   final VoidCallback onOpenSearch;
 
   const HomePage({
     super.key,
+    required this.controller,
     required this.onOpenPlayer,
     required this.onOpenSearch,
   });
 
   @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      widget.controller.loadHomeSongs();
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return PageScroll(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          TopBar(
-            title: 'Make Your Vibe',
-            action: IconButton(
-              onPressed: () {},
-              icon: const Icon(Icons.notifications_none_rounded),
-            ),
+    return AnimatedBuilder(
+      animation: widget.controller,
+      builder: (context, _) {
+        return PageScroll(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TopBar(
+                title: 'Make Your Vibe',
+                action: IconButton(
+                  onPressed: widget.onOpenSearch,
+                  icon: const Icon(Icons.search_rounded),
+                ),
+              ),
+              const SizedBox(height: 14),
+              HeroMusicCard(onTap: widget.onOpenSearch),
+              const SizedBox(height: 20),
+              SectionHeader(
+                title: 'Nhạc gợi ý',
+                action: 'Search',
+                onTap: widget.onOpenSearch,
+              ),
+              const SizedBox(height: 12),
+              if (widget.controller.loadingHome)
+                const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(24),
+                    child: CircularProgressIndicator(),
+                  ),
+                )
+              else
+                SongList(
+                  songs: widget.controller.homeSongs,
+                  activeId: widget.controller.currentSong?.id,
+                  onSongTap: (song) {
+                    widget.controller.playSong(
+                      song,
+                      queue: widget.controller.homeSongs,
+                    );
+                  },
+                ),
+              if (widget.controller.errorMessage.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                BackendNotice(
+                  icon: Icons.error_outline_rounded,
+                  title: 'Lỗi phát nhạc',
+                  message: widget.controller.errorMessage,
+                ),
+              ],
+            ],
           ),
-          const SizedBox(height: 14),
-          HeroMusicCard(onTap: onOpenPlayer),
-          const SizedBox(height: 20),
-          SectionHeader(
-            title: 'Daily Mix',
-            action: 'See all',
-            onTap: onOpenSearch,
-          ),
-          const SizedBox(height: 12),
-          const BackendPlaceholderGrid(),
-          const SizedBox(height: 22),
-          SectionHeader(
-            title: 'For your mood',
-            action: 'Backend',
-            onTap: () {},
-          ),
-          const SizedBox(height: 12),
-          const BackendNotice(
-            icon: Icons.dns_rounded,
-            title: 'Waiting for music source',
-            message:
-            'Home cards, album covers, songs and artists will be loaded from the music backend.',
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
@@ -90,7 +123,7 @@ class HeroMusicCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Connect your\nmusic source',
+                  'Search and\nplay music',
                   style: TextStyle(
                     color: AppColors.text,
                     fontSize: 23,
@@ -102,7 +135,7 @@ class HeroMusicCard extends StatelessWidget {
                 SizedBox(
                   width: 185,
                   child: Text(
-                    'The UI is ready. Real songs will come from backend.',
+                    'Nhập tên bài hát, chọn kết quả và phát trực tiếp.',
                     style: TextStyle(
                       color: AppColors.soft,
                       height: 1.35,
@@ -111,7 +144,7 @@ class HeroMusicCard extends StatelessWidget {
                   ),
                 ),
                 Spacer(),
-                SmallGreenButton(label: 'Open player'),
+                SmallGreenButton(label: 'Search music'),
               ],
             ),
           ],

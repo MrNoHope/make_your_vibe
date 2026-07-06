@@ -42,7 +42,7 @@ class _MainShellState extends State<MainShell> {
   void openPlayer() {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => const PlayerScreen(),
+        builder: (_) => PlayerScreen(controller: widget.controller),
       ),
     );
   }
@@ -60,6 +60,7 @@ class _MainShellState extends State<MainShell> {
   Widget build(BuildContext context) {
     final pages = [
       HomePage(
+        controller: widget.controller,
         onOpenPlayer: openPlayer,
         onOpenSearch: () {
           setState(() {
@@ -69,7 +70,7 @@ class _MainShellState extends State<MainShell> {
       ),
       SoundEffectsPage(onOpenMixer: openAmbientMixer),
       SoundEffectsPage(onOpenMixer: openAmbientMixer),
-      const SearchPage(),
+      SearchPage(controller: widget.controller),
       const LibraryPage(),
       SettingsPage(
         onLogout: widget.onLogout,
@@ -100,7 +101,7 @@ class _MainShellState extends State<MainShell> {
                   Expanded(
                     child: pages[index],
                   ),
-                  MiniPlayerBar(onTap: openPlayer),
+                  MiniPlayerBar(controller: widget.controller, onTap: openPlayer),
                 ],
               ),
             ),

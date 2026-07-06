@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../core/app_colors.dart';
 import '../../widgets/app_logo.dart';
 import '../../widgets/auth_widgets.dart';
 

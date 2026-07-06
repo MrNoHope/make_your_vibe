@@ -52,6 +52,12 @@ class _MakeYourVibeAppState extends State<MakeYourVibeApp> {
     });
   }
 
+  @override
+  void dispose() {
+    controller.dispose();
+    super.dispose();
+  }
+
   void setDarkMode(bool value) {
     setState(() {
       darkMode = value;
