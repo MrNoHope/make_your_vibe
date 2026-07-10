@@ -2,15 +2,20 @@ import 'package:flutter/material.dart';
 
 import '../../controllers/vibe_controller.dart';
 import '../../core/app_colors.dart';
+import '../../models/playlist.dart';
+import '../../models/song.dart';
+import '../../services/library_gateway.dart';
 import '../../widgets/common_widgets.dart';
 import '../../widgets/song_widgets.dart';
 
 class SearchPage extends StatefulWidget {
   final VibeController controller;
+  final VoidCallback onOpenPlayer;
 
   const SearchPage({
     super.key,
     required this.controller,
+    required this.onOpenPlayer,
   });
 
   @override
@@ -62,16 +67,22 @@ class _SearchPageState extends State<SearchPage> {
                     child: CircularProgressIndicator(),
                   ),
                 )
-              else
+              else if (widget.controller.searchResults.isNotEmpty)
                 SongList(
                   songs: widget.controller.searchResults,
                   activeId: widget.controller.currentSong?.id,
+                  activePlaying: widget.controller.isPlaying,
+                  activeBusy: widget.controller.resolving,
                   onSongTap: (song) {
                     widget.controller.playSong(
                       song,
                       queue: widget.controller.searchResults,
                     );
                   },
+                  onActiveToggle: widget.controller.togglePlay,
+                  onActiveStop: widget.controller.reset,
+                  onActiveOpen: widget.onOpenPlayer,
+                  onSongAddToAlbum: showAddToAlbumDialog,
                 ),
               if (widget.controller.errorMessage.isNotEmpty) ...[
                 const SizedBox(height: 12),
@@ -81,17 +92,24 @@ class _SearchPageState extends State<SearchPage> {
                   message: widget.controller.errorMessage,
                 ),
               ],
-              if (!widget.controller.searching && widget.controller.searchResults.isEmpty) ...[
+              if (!widget.controller.searching &&
+                  widget.controller.searchResults.isEmpty) ...[
                 const SizedBox(height: 20),
                 Wrap(
                   spacing: 9,
                   runSpacing: 9,
                   children: [
-                    SearchChip(label: 'Sơn Tùng', onTap: () => quickSearch('Sơn Tùng')),
+                    SearchChip(
+                        label: 'Sơn Tùng',
+                        onTap: () => quickSearch('Sơn Tùng')),
                     SearchChip(label: 'Lofi', onTap: () => quickSearch('lofi')),
-                    SearchChip(label: 'Chill', onTap: () => quickSearch('chill music')),
-                    SearchChip(label: 'V-pop', onTap: () => quickSearch('vpop')),
-                    SearchChip(label: 'Jazz', onTap: () => quickSearch('jazz music')),
+                    SearchChip(
+                        label: 'Chill',
+                        onTap: () => quickSearch('chill music')),
+                    SearchChip(
+                        label: 'V-pop', onTap: () => quickSearch('vpop')),
+                    SearchChip(
+                        label: 'Jazz', onTap: () => quickSearch('jazz music')),
                   ],
                 ),
               ],
@@ -105,6 +123,165 @@ class _SearchPageState extends State<SearchPage> {
   void quickSearch(String value) {
     textController.text = value;
     submit();
+  }
+
+  Future<void> showAddToAlbumDialog(Song song) async {
+    if (!libraryGateway.isConfigured) {
+      showSnack('Chưa cấu hình Supabase.');
+      return;
+    }
+
+    final newAlbumController = TextEditingController();
+
+    try {
+      final availableAlbums = await libraryGateway.getAlbums();
+
+      if (!mounted) return;
+
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) {
+          var busy = false;
+          var createNew = availableAlbums.isEmpty;
+          var selectedAlbumId =
+              availableAlbums.isEmpty ? '' : availableAlbums.first.id;
+
+          return StatefulBuilder(
+            builder: (context, setDialogState) {
+              final selectedAlbum = _albumById(
+                availableAlbums,
+                selectedAlbumId,
+              );
+
+              return AlertDialog(
+                backgroundColor: AppColors.card,
+                title: const Text('Thêm vào album'),
+                content: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        song.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.w900),
+                      ),
+                      const SizedBox(height: 12),
+                      if (availableAlbums.isNotEmpty) ...[
+                        DropdownButtonFormField<String>(
+                          initialValue: createNew ? '__new__' : selectedAlbumId,
+                          decoration: const InputDecoration(
+                            labelText: 'Album',
+                          ),
+                          items: [
+                            ...availableAlbums.map(
+                              (album) => DropdownMenuItem(
+                                value: album.id,
+                                child: Text(album.title),
+                              ),
+                            ),
+                            const DropdownMenuItem(
+                              value: '__new__',
+                              child: Text('Tạo album mới'),
+                            ),
+                          ],
+                          onChanged: busy
+                              ? null
+                              : (value) {
+                                  setDialogState(() {
+                                    createNew = value == '__new__';
+                                    selectedAlbumId =
+                                        createNew ? '' : value ?? '';
+                                  });
+                                },
+                        ),
+                        const SizedBox(height: 12),
+                      ],
+                      if (createNew)
+                        TextField(
+                          controller: newAlbumController,
+                          decoration: const InputDecoration(
+                            labelText: 'Tên album mới',
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed:
+                        busy ? null : () => Navigator.of(dialogContext).pop(),
+                    child: const Text('Hủy'),
+                  ),
+                  FilledButton.icon(
+                    onPressed: busy
+                        ? null
+                        : () async {
+                            setDialogState(() {
+                              busy = true;
+                            });
+
+                            try {
+                              final targetAlbum = createNew
+                                  ? await libraryGateway.createAlbum(
+                                      title: newAlbumController.text,
+                                    )
+                                  : selectedAlbum;
+
+                              if (targetAlbum == null) {
+                                throw const LibraryGatewayException(
+                                  'Chọn album.',
+                                );
+                              }
+
+                              await libraryGateway.saveOnlineSongToAlbum(
+                                song: song,
+                                albumId: targetAlbum.id,
+                                albumTitle: targetAlbum.title,
+                              );
+
+                              if (dialogContext.mounted) {
+                                Navigator.of(dialogContext).pop();
+                              }
+                              showSnack('Đã thêm vào ${targetAlbum.title}.');
+                            } catch (error) {
+                              setDialogState(() {
+                                busy = false;
+                              });
+                              showSnack('$error');
+                            }
+                          },
+                    icon: const Icon(Icons.playlist_add_rounded),
+                    label: const Text('Thêm'),
+                  ),
+                ],
+              );
+            },
+          );
+        },
+      );
+    } catch (error) {
+      showSnack('$error');
+    } finally {
+      newAlbumController.dispose();
+    }
+  }
+
+  Playlist? _albumById(List<Playlist> albums, String id) {
+    for (final album in albums) {
+      if (album.id == id) {
+        return album;
+      }
+    }
+    return null;
+  }
+
+  void showSnack(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
   }
 }
 

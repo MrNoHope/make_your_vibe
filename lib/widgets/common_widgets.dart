@@ -168,6 +168,12 @@ class CoverImage extends StatelessWidget {
             child: Image.network(
               url,
               fit: BoxFit.cover,
+              cacheWidth: size == double.infinity
+                  ? null
+                  : (size * MediaQuery.devicePixelRatioOf(context)).ceil(),
+              cacheHeight: size == double.infinity
+                  ? null
+                  : (size * MediaQuery.devicePixelRatioOf(context)).ceil(),
               errorBuilder: (_, __, ___) => fallback,
             ),
           );

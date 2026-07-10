@@ -66,6 +66,18 @@ class Song {
     );
   }
 
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'title': title,
+      'artist': artist,
+      'album': album,
+      'coverUrl': coverUrl,
+      'durationSeconds': duration.inSeconds,
+      'streamUrl': streamUrl,
+    };
+  }
+
   static int _toInt(dynamic value) {
     if (value is int) return value;
     if (value is double) return value.toInt();

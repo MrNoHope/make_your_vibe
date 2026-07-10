@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../services/user_gateway.dart';
 import '../../widgets/app_logo.dart';
 import '../../widgets/auth_widgets.dart';
 
@@ -27,6 +28,8 @@ class _AuthScreenState extends State<AuthScreen> {
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
   final nameController = TextEditingController();
+  bool loading = false;
+  String errorMessage = '';
 
   @override
   void dispose() {
@@ -36,9 +39,84 @@ class _AuthScreenState extends State<AuthScreen> {
     super.dispose();
   }
 
-  void submit() {
+  Future<void> submit() async {
     FocusScope.of(context).unfocus();
-    widget.onAuthenticated();
+    final email = emailController.text.trim();
+    final password = passwordController.text;
+    final name = nameController.text.trim();
+
+    if (email.isEmpty || (!isForgotMode && password.isEmpty)) {
+      setState(() {
+        errorMessage = 'Nhập email và mật khẩu để tiếp tục.';
+      });
+      return;
+    }
+
+    if (isRegisterMode && name.isEmpty) {
+      setState(() {
+        errorMessage = 'Nhập tên hiển thị để tạo tài khoản.';
+      });
+      return;
+    }
+
+    await _runAuthAction(() async {
+      if (isForgotMode) {
+        await userGateway.sendPasswordReset(email);
+        setState(() {
+          mode = AuthMode.login;
+          errorMessage = 'Đã gửi email khôi phục mật khẩu.';
+        });
+        return;
+      }
+
+      if (isRegisterMode) {
+        await userGateway.register(name, email, password);
+      } else {
+        await userGateway.login(email, password);
+      }
+
+      widget.onAuthenticated();
+    });
+  }
+
+  bool get isRegisterMode => mode == AuthMode.register;
+
+  bool get isForgotMode => mode == AuthMode.forgot;
+
+  Future<void> signInWithGoogle() async {
+    await _runAuthAction(() async {
+      await userGateway.signInWithGoogle();
+      widget.onAuthenticated();
+    });
+  }
+
+  Future<void> signInWithFacebook() async {
+    await _runAuthAction(() async {
+      await userGateway.signInWithFacebook();
+      widget.onAuthenticated();
+    });
+  }
+
+  Future<void> _runAuthAction(Future<void> Function() action) async {
+    setState(() {
+      loading = true;
+      errorMessage = '';
+    });
+
+    try {
+      await action();
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        errorMessage = '$error';
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          loading = false;
+        });
+      }
+    }
   }
 
   @override
@@ -50,14 +128,14 @@ class _AuthScreenState extends State<AuthScreen> {
     final title = isLogin
         ? 'Đăng nhập'
         : isRegister
-        ? 'Đăng ký tài khoản'
-        : 'Quên mật khẩu';
+            ? 'Đăng ký tài khoản'
+            : 'Quên mật khẩu';
 
     final button = isLogin
         ? 'Đăng nhập'
         : isRegister
-        ? 'Đăng ký'
-        : 'Gửi mã khôi phục';
+            ? 'Đăng ký'
+            : 'Gửi mã khôi phục';
 
     return Scaffold(
       body: SafeArea(
@@ -122,9 +200,36 @@ class _AuthScreenState extends State<AuthScreen> {
             ],
             const SizedBox(height: 18),
             FilledButton(
-              onPressed: submit,
+              onPressed: loading ? null : submit,
               child: Text(button),
             ),
+            if (!isForgot) ...[
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: loading ? null : signInWithGoogle,
+                icon: const Icon(Icons.g_mobiledata_rounded),
+                label: const Text('Đăng nhập bằng Google'),
+              ),
+              const SizedBox(height: 10),
+              OutlinedButton.icon(
+                onPressed: loading ? null : signInWithFacebook,
+                icon: const Icon(Icons.facebook_rounded),
+                label: const Text('Đăng nhập bằng Facebook'),
+              ),
+            ],
+            if (errorMessage.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Text(
+                errorMessage,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: errorMessage.startsWith('Đã gửi')
+                      ? Theme.of(context).colorScheme.primary
+                      : Theme.of(context).colorScheme.error,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
             const SizedBox(height: 14),
             if (isLogin)
               Center(

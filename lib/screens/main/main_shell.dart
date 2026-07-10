@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../controllers/vibe_controller.dart';
+import '../../core/app_colors.dart';
 import '../../core/app_language.dart';
 import '../../screens/home/home_page.dart';
 import '../../screens/library/library_page.dart';
@@ -40,9 +41,19 @@ class _MainShellState extends State<MainShell> {
   int index = 0;
 
   void openPlayer() {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => PlayerScreen(controller: widget.controller),
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => FractionallySizedBox(
+        heightFactor: 0.92,
+        child: ClipRRect(
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          child: ColoredBox(
+            color: AppColors.background,
+            child: PlayerScreen(controller: widget.controller),
+          ),
+        ),
       ),
     );
   }
@@ -70,8 +81,14 @@ class _MainShellState extends State<MainShell> {
       ),
       SoundEffectsPage(onOpenMixer: openAmbientMixer),
       SoundEffectsPage(onOpenMixer: openAmbientMixer),
-      SearchPage(controller: widget.controller),
-      const LibraryPage(),
+      SearchPage(
+        controller: widget.controller,
+        onOpenPlayer: openPlayer,
+      ),
+      LibraryPage(
+        controller: widget.controller,
+        onOpenPlayer: openPlayer,
+      ),
       SettingsPage(
         onLogout: widget.onLogout,
         darkMode: widget.darkMode,
@@ -101,7 +118,10 @@ class _MainShellState extends State<MainShell> {
                   Expanded(
                     child: pages[index],
                   ),
-                  MiniPlayerBar(controller: widget.controller, onTap: openPlayer),
+                  MiniPlayerBar(
+                    controller: widget.controller,
+                    onTap: openPlayer,
+                  ),
                 ],
               ),
             ),

@@ -6,6 +6,7 @@ import 'core/app_theme.dart';
 import 'screens/auth/auth_screen.dart';
 import 'screens/main/main_shell.dart';
 import 'screens/splash_screen.dart';
+import 'services/user_gateway.dart';
 
 class MakeYourVibeApp extends StatefulWidget {
   const MakeYourVibeApp({super.key});
@@ -33,9 +34,20 @@ class _MakeYourVibeAppState extends State<MakeYourVibeApp> {
 
     if (!mounted) return;
 
+    final user = await _loadCurrentUser();
+
     setState(() {
       loading = false;
+      loggedIn = user != null;
     });
+  }
+
+  Future<Object?> _loadCurrentUser() async {
+    try {
+      return await userGateway.getCurrentUser();
+    } catch (_) {
+      return null;
+    }
   }
 
   void enterApp() {
@@ -44,8 +56,9 @@ class _MakeYourVibeAppState extends State<MakeYourVibeApp> {
     });
   }
 
-  void logout() {
-    controller.reset();
+  Future<void> logout() async {
+    await controller.reset();
+    await userGateway.logout();
 
     setState(() {
       loggedIn = false;
@@ -79,17 +92,19 @@ class _MakeYourVibeAppState extends State<MakeYourVibeApp> {
       home: loading
           ? const SplashScreen()
           : loggedIn
-          ? MainShell(
-        controller: controller,
-        onLogout: logout,
-        darkMode: darkMode,
-        onDarkModeChanged: setDarkMode,
-        language: language,
-        onLanguageChanged: toggleLanguage,
-      )
-          : AuthScreen(
-        onAuthenticated: enterApp,
-      ),
+              ? MainShell(
+                  controller: controller,
+                  onLogout: () {
+                    logout();
+                  },
+                  darkMode: darkMode,
+                  onDarkModeChanged: setDarkMode,
+                  language: language,
+                  onLanguageChanged: toggleLanguage,
+                )
+              : AuthScreen(
+                  onAuthenticated: enterApp,
+                ),
     );
   }
 }

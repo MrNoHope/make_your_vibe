@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:audio_service/audio_service.dart';
 import 'package:just_audio/just_audio.dart';
 
@@ -46,9 +48,12 @@ class JustAudioGateway implements AudioGateway {
       throw Exception('Bài hát chưa có streamUrl');
     }
 
+    final uri = Uri.parse(song.streamUrl);
+
     await _player.setAudioSource(
       AudioSource.uri(
-        Uri.parse(song.streamUrl),
+        uri,
+        headers: _headersFor(uri),
         tag: MediaItem(
           id: song.id,
           title: song.title,
@@ -60,7 +65,7 @@ class JustAudioGateway implements AudioGateway {
       ),
     );
 
-    await _player.play();
+    _startPlayback();
   }
 
   @override
@@ -70,7 +75,7 @@ class JustAudioGateway implements AudioGateway {
 
   @override
   Future<void> resume() async {
-    await _player.play();
+    _startPlayback();
   }
 
   @override
@@ -86,6 +91,29 @@ class JustAudioGateway implements AudioGateway {
   @override
   Future<void> dispose() async {
     await _player.dispose();
+  }
+
+  void _startPlayback() {
+    unawaited(_player.play().catchError((Object _) {}));
+  }
+
+  Map<String, String>? _headersFor(Uri uri) {
+    if (!uri.host.endsWith('googlevideo.com') &&
+        !uri.host.endsWith('youtube.com')) {
+      return null;
+    }
+
+    return const {
+      'user-agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+              '(KHTML, like Gecko) Chrome/96.0.4664.18 Safari/537.36',
+      'cookie': 'CONSENT=YES+cb',
+      'accept':
+          'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,'
+              'image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;'
+              'q=0.9',
+      'accept-language': 'en-US,en;q=0.5',
+    };
   }
 }
 

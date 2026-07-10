@@ -7,24 +7,41 @@ import 'common_widgets.dart';
 class SongTile extends StatelessWidget {
   final Song song;
   final bool active;
+  final bool playing;
+  final bool busy;
   final VoidCallback onTap;
+  final VoidCallback? onToggle;
+  final VoidCallback? onStop;
+  final VoidCallback? onOpen;
+  final VoidCallback? onAddToAlbum;
 
   const SongTile({
     super.key,
     required this.song,
     required this.active,
     required this.onTap,
+    this.playing = false,
+    this.busy = false,
+    this.onToggle,
+    this.onStop,
+    this.onOpen,
+    this.onAddToAlbum,
   });
 
   @override
   Widget build(BuildContext context) {
+    final subtitle = song.album.trim().isEmpty
+        ? song.artist
+        : '${song.artist} • ${song.album}';
+
     return InkWell(
-      onTap: onTap,
+      onTap: active && onToggle != null ? onToggle : onTap,
       borderRadius: BorderRadius.circular(16),
       child: Container(
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: active ? AppColors.green.withValues(alpha: 0.16) : AppColors.card,
+          color:
+              active ? AppColors.green.withValues(alpha: 0.16) : AppColors.card,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: active ? AppColors.green : AppColors.line,
@@ -53,7 +70,7 @@ class SongTile extends StatelessWidget {
                   ),
                   const SizedBox(height: 3),
                   Text(
-                    song.artist,
+                    subtitle,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
@@ -65,14 +82,29 @@ class SongTile extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 8),
-            Text(
-              song.durationText,
-              style: const TextStyle(
-                color: AppColors.muted,
-                fontSize: 10,
-                fontWeight: FontWeight.w700,
+            if (onAddToAlbum != null)
+              _SongControlButton(
+                tooltip: 'Thêm vào album',
+                icon: Icons.playlist_add_rounded,
+                onPressed: onAddToAlbum,
               ),
-            ),
+            if (active)
+              _ActiveSongControls(
+                playing: playing,
+                busy: busy,
+                onToggle: onToggle,
+                onStop: onStop,
+                onOpen: onOpen,
+              )
+            else
+              Text(
+                song.durationText,
+                style: const TextStyle(
+                  color: AppColors.muted,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
           ],
         ),
       ),
@@ -83,13 +115,25 @@ class SongTile extends StatelessWidget {
 class SongList extends StatelessWidget {
   final List<Song> songs;
   final String? activeId;
+  final bool activePlaying;
+  final bool activeBusy;
   final ValueChanged<Song> onSongTap;
+  final VoidCallback? onActiveToggle;
+  final VoidCallback? onActiveStop;
+  final VoidCallback? onActiveOpen;
+  final ValueChanged<Song>? onSongAddToAlbum;
 
   const SongList({
     super.key,
     required this.songs,
     required this.activeId,
     required this.onSongTap,
+    this.activePlaying = false,
+    this.activeBusy = false,
+    this.onActiveToggle,
+    this.onActiveStop,
+    this.onActiveOpen,
+    this.onSongAddToAlbum,
   });
 
   @override
@@ -104,15 +148,104 @@ class SongList extends StatelessWidget {
 
     return Column(
       children: songs.map((song) {
+        final active = song.id == activeId;
+
         return Padding(
           padding: const EdgeInsets.only(bottom: 10),
           child: SongTile(
             song: song,
-            active: song.id == activeId,
+            active: active,
+            playing: active && activePlaying,
+            busy: active && activeBusy,
             onTap: () => onSongTap(song),
+            onToggle: active ? onActiveToggle : null,
+            onStop: active ? onActiveStop : null,
+            onOpen: active ? onActiveOpen : null,
+            onAddToAlbum:
+                onSongAddToAlbum == null ? null : () => onSongAddToAlbum!(song),
           ),
         );
       }).toList(),
+    );
+  }
+}
+
+class _ActiveSongControls extends StatelessWidget {
+  final bool playing;
+  final bool busy;
+  final VoidCallback? onToggle;
+  final VoidCallback? onStop;
+  final VoidCallback? onOpen;
+
+  const _ActiveSongControls({
+    required this.playing,
+    required this.busy,
+    required this.onToggle,
+    required this.onStop,
+    required this.onOpen,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 112,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          _SongControlButton(
+            tooltip: 'Stop',
+            icon: Icons.stop_circle_rounded,
+            onPressed: onStop,
+          ),
+          _SongControlButton(
+            tooltip: playing ? 'Pause' : 'Play',
+            icon: busy
+                ? Icons.hourglass_top_rounded
+                : playing
+                    ? Icons.pause_circle_filled_rounded
+                    : Icons.play_circle_fill_rounded,
+            iconSize: 32,
+            onPressed: busy ? null : onToggle,
+          ),
+          _SongControlButton(
+            tooltip: 'Open',
+            icon: Icons.expand_less_rounded,
+            onPressed: onOpen,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SongControlButton extends StatelessWidget {
+  final String tooltip;
+  final IconData icon;
+  final double iconSize;
+  final VoidCallback? onPressed;
+
+  const _SongControlButton({
+    required this.tooltip,
+    required this.icon,
+    required this.onPressed,
+    this.iconSize = 24,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox.square(
+      dimension: 34,
+      child: IconButton(
+        tooltip: tooltip,
+        padding: EdgeInsets.zero,
+        visualDensity: VisualDensity.compact,
+        onPressed: onPressed,
+        icon: Icon(
+          icon,
+          color: onPressed == null ? AppColors.muted : Colors.white,
+          size: iconSize,
+        ),
+      ),
     );
   }
 }

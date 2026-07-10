@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/song.dart';
 import '../services/audio_gateway.dart';
@@ -10,6 +12,7 @@ import '../services/music_gateway.dart';
 class VibeController extends ChangeNotifier {
   final MusicGateway music = musicGateway;
   final AudioGateway audio = audioGateway;
+  static const _lastSongKey = 'make_your_vibe.last_song';
 
   Song? currentSong;
   List<Song> homeSongs = [];
@@ -30,6 +33,7 @@ class VibeController extends ChangeNotifier {
       isPlaying = state.playing;
       notifyListeners();
     });
+    unawaited(_restoreLastSong());
   }
 
   Future<void> loadHomeSongs() async {
@@ -101,6 +105,7 @@ class VibeController extends ChangeNotifier {
       }
 
       await audio.play(resolved);
+      unawaited(_saveLastSong(resolved));
     } catch (error) {
       errorMessage = 'Không phát được bài này: $error';
     }
@@ -119,6 +124,11 @@ class VibeController extends ChangeNotifier {
 
     if (audio.isPlaying) {
       await audio.pause();
+    } else if (!currentSong!.hasStream) {
+      await playSong(
+        currentSong!,
+        queue: activeQueue.isEmpty ? [currentSong!] : activeQueue,
+      );
     } else {
       await audio.resume();
     }
@@ -131,7 +141,8 @@ class VibeController extends ChangeNotifier {
       return;
     }
 
-    final nextIndex = currentIndex + 1 >= activeQueue.length ? 0 : currentIndex + 1;
+    final nextIndex =
+        currentIndex + 1 >= activeQueue.length ? 0 : currentIndex + 1;
     currentIndex = nextIndex;
     await playSong(activeQueue[nextIndex], queue: activeQueue);
   }
@@ -146,9 +157,15 @@ class VibeController extends ChangeNotifier {
       return;
     }
 
-    final previousIndex = currentIndex - 1 < 0 ? activeQueue.length - 1 : currentIndex - 1;
+    final previousIndex =
+        currentIndex - 1 < 0 ? activeQueue.length - 1 : currentIndex - 1;
     currentIndex = previousIndex;
     await playSong(activeQueue[previousIndex], queue: activeQueue);
+  }
+
+  Future<void> rewindTenSeconds() async {
+    final nextPosition = audio.position - const Duration(seconds: 10);
+    await audio.seek(nextPosition.isNegative ? Duration.zero : nextPosition);
   }
 
   Future<void> seek(Duration position) async {
@@ -160,7 +177,37 @@ class VibeController extends ChangeNotifier {
     currentSong = null;
     isPlaying = false;
     currentIndex = 0;
+    unawaited(_clearLastSong());
     notifyListeners();
+  }
+
+  Future<void> _restoreLastSong() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_lastSongKey);
+
+      if (raw == null || raw.trim().isEmpty) {
+        return;
+      }
+
+      currentSong = Song.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+      notifyListeners();
+    } catch (_) {}
+  }
+
+  Future<void> _saveLastSong(Song song) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cached = song.copyWith(streamUrl: '');
+      await prefs.setString(_lastSongKey, jsonEncode(cached.toJson()));
+    } catch (_) {}
+  }
+
+  Future<void> _clearLastSong() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_lastSongKey);
+    } catch (_) {}
   }
 
   String formatDuration(Duration duration) {
