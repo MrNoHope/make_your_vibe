@@ -205,16 +205,16 @@ class _AuthScreenState extends State<AuthScreen> {
             ),
             if (!isForgot) ...[
               const SizedBox(height: 12),
-              OutlinedButton.icon(
+              AuthProviderButton(
                 onPressed: loading ? null : signInWithGoogle,
-                icon: const Icon(Icons.g_mobiledata_rounded),
-                label: const Text('Đăng nhập bằng Google'),
+                logo: const GoogleLogo(),
+                label: 'Đăng nhập bằng Google',
               ),
               const SizedBox(height: 10),
-              OutlinedButton.icon(
+              AuthProviderButton(
                 onPressed: loading ? null : signInWithFacebook,
-                icon: const Icon(Icons.facebook_rounded),
-                label: const Text('Đăng nhập bằng Facebook'),
+                logo: const FacebookLogo(),
+                label: 'Đăng nhập bằng Facebook',
               ),
             ],
             if (errorMessage.isNotEmpty) ...[
