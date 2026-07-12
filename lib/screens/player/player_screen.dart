@@ -1,7 +1,7 @@
+import 'dart:async';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
-
 import '../../controllers/vibe_controller.dart';
 import '../../core/app_colors.dart';
 import '../../models/song.dart';
@@ -30,6 +30,10 @@ class PlayerScreen extends StatelessWidget {
               SafeArea(
                 child: LayoutBuilder(
                   builder: (context, constraints) {
+                    final mediaSize = (constraints.maxWidth - 40)
+                        .clamp(230.0, 360.0)
+                        .toDouble();
+
                     return SingleChildScrollView(
                       padding: const EdgeInsets.fromLTRB(20, 6, 20, 24),
                       child: ConstrainedBox(
@@ -66,22 +70,14 @@ class PlayerScreen extends StatelessWidget {
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 24),
-                            AspectRatio(
-                              aspectRatio: 1,
-                              child: ConstrainedBox(
-                                constraints: const BoxConstraints(
-                                  maxWidth: 330,
-                                  maxHeight: 330,
-                                ),
-                                child: CoverImage(
-                                  url: song?.coverUrl ?? '',
-                                  size: double.infinity,
-                                  radius: 18,
-                                ),
+                            const SizedBox(height: 16),
+                            Center(
+                              child: SizedBox.square(
+                                dimension: mediaSize,
+                                child: _HeroMedia(song: song),
                               ),
                             ),
-                            const SizedBox(height: 28),
+                            const SizedBox(height: 20),
                             Align(
                               alignment: Alignment.centerLeft,
                               child: Text(
@@ -89,7 +85,7 @@ class PlayerScreen extends StatelessWidget {
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
-                                  fontSize: 28,
+                                  fontSize: 25,
                                   height: 1.08,
                                   fontWeight: FontWeight.w900,
                                 ),
@@ -141,12 +137,7 @@ class PlayerScreen extends StatelessWidget {
                                   onPressed:
                                       song == null ? null : controller.nextSong,
                                 ),
-                                _PlainControlButton(
-                                  tooltip: 'Dừng',
-                                  icon: Icons.stop_circle_rounded,
-                                  onPressed:
-                                      song == null ? null : controller.reset,
-                                ),
+                                _RepeatControlButton(controller: controller),
                               ],
                             ),
                             if (controller.errorMessage.isNotEmpty) ...[
@@ -168,6 +159,68 @@ class PlayerScreen extends StatelessWidget {
           );
         },
       ),
+    );
+  }
+}
+
+class _HeroMedia extends StatelessWidget {
+  final Song? song;
+
+  const _HeroMedia({
+    required this.song,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final url = song?.coverUrl.trim() ?? '';
+    final fallback = DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: AppColors.darkGradient,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: const Center(
+        child: Icon(
+          Icons.music_note_rounded,
+          color: AppColors.green,
+          size: 64,
+        ),
+      ),
+    );
+
+    return Container(
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: AppColors.card,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      foregroundDecoration: BoxDecoration(
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: url.isEmpty
+          ? fallback
+          : Image.network(
+              url,
+              width: double.infinity,
+              height: double.infinity,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => fallback,
+              loadingBuilder: (context, child, progress) {
+                if (progress == null) {
+                  return child;
+                }
+
+                return Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    fallback,
+                    const Center(
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  ],
+                );
+              },
+            ),
     );
   }
 }
@@ -281,7 +334,7 @@ class _PlayerBackdrop extends StatelessWidget {
   }
 }
 
-class _ProgressBlock extends StatelessWidget {
+class _ProgressBlock extends StatefulWidget {
   final VibeController controller;
   final Song? song;
 
@@ -291,68 +344,94 @@ class _ProgressBlock extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    return StreamBuilder<Duration?>(
-      stream: controller.audio.durationStream,
-      builder: (context, durationSnapshot) {
-        return StreamBuilder<Duration>(
-          stream: controller.audio.positionStream,
-          builder: (context, positionSnapshot) {
-            final position = positionSnapshot.data ?? Duration.zero;
-            final duration =
-                durationSnapshot.data ?? song?.duration ?? Duration.zero;
-            final max = duration.inMilliseconds <= 0
-                ? 1.0
-                : duration.inMilliseconds.toDouble();
-            final current =
-                position.inMilliseconds.clamp(0, max.toInt()).toDouble();
+  State<_ProgressBlock> createState() => _ProgressBlockState();
+}
 
-            return Column(
-              children: [
-                SliderTheme(
-                  data: SliderTheme.of(context).copyWith(
-                    trackHeight: 3,
-                    thumbShape: const RoundSliderThumbShape(
-                      enabledThumbRadius: 6,
-                    ),
-                    overlayShape: const RoundSliderOverlayShape(
-                      overlayRadius: 14,
-                    ),
-                  ),
-                  child: Slider(
-                    value: current,
-                    min: 0,
-                    max: max,
-                    activeColor: Colors.white,
-                    inactiveColor: Colors.white.withValues(alpha: 0.28),
-                    onChanged: song == null
-                        ? null
-                        : (value) {
-                            controller.seek(
-                              Duration(milliseconds: value.toInt()),
-                            );
-                          },
-                  ),
-                ),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      controller.formatDuration(position),
-                      style: const TextStyle(color: AppColors.soft),
-                    ),
-                    Text(
-                      controller.formatDuration(duration),
-                      style: const TextStyle(color: AppColors.soft),
-                    ),
-                  ],
-                ),
-              ],
-            );
-          },
-        );
-      },
+class _ProgressBlockState extends State<_ProgressBlock> {
+  double? _dragValue;
+  Timer? _seekDebounce;
+
+  @override
+  void dispose() {
+    _seekDebounce?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final position = widget.controller.position;
+    final duration =
+        widget.controller.duration ?? widget.song?.duration ?? Duration.zero;
+    final max =
+        duration.inMilliseconds <= 0 ? 1.0 : duration.inMilliseconds.toDouble();
+    final current =
+        (_dragValue ?? position.inMilliseconds.toDouble()).clamp(0.0, max);
+    final shownPosition = Duration(milliseconds: current.toInt());
+
+    return Column(
+      children: [
+        SliderTheme(
+          data: SliderTheme.of(context).copyWith(
+            trackHeight: 3,
+            thumbShape: const RoundSliderThumbShape(
+              enabledThumbRadius: 6,
+            ),
+            overlayShape: const RoundSliderOverlayShape(
+              overlayRadius: 14,
+            ),
+          ),
+          child: Slider(
+            value: current,
+            min: 0,
+            max: max,
+            activeColor: Colors.white,
+            inactiveColor: Colors.white.withValues(alpha: 0.28),
+            onChanged: widget.song == null
+                ? null
+                : (value) {
+                    setState(() => _dragValue = value);
+                    _seekDebounce?.cancel();
+                    _seekDebounce = Timer(
+                      const Duration(milliseconds: 350),
+                      () => _commitSeek(value),
+                    );
+                  },
+            onChangeEnd: widget.song == null
+                ? null
+                : (value) async {
+                    _seekDebounce?.cancel();
+                    await _commitSeek(value);
+                  },
+          ),
+        ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              widget.controller.formatDuration(shownPosition),
+              style: const TextStyle(color: AppColors.soft),
+            ),
+            Text(
+              widget.controller.formatDuration(duration),
+              style: const TextStyle(color: AppColors.soft),
+            ),
+          ],
+        ),
+      ],
     );
+  }
+
+  Future<void> _commitSeek(double value) async {
+    if (!mounted) {
+      return;
+    }
+
+    setState(() => _dragValue = value);
+    await widget.controller.seek(Duration(milliseconds: value.toInt()));
+
+    if (mounted) {
+      setState(() => _dragValue = null);
+    }
   }
 }
 
@@ -383,6 +462,54 @@ class _PlayButton extends StatelessWidget {
             size: 44,
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _RepeatControlButton extends StatelessWidget {
+  final VibeController controller;
+
+  const _RepeatControlButton({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    final repeatMode = controller.repeatMode;
+    final active = repeatMode != VibeRepeatMode.off;
+
+    return SizedBox(
+      width: 48,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            tooltip: switch (repeatMode) {
+              VibeRepeatMode.off => 'Lap lai',
+              VibeRepeatMode.song => 'Lap lai bai hien tai',
+              VibeRepeatMode.songOnce => 'Lap lai bai nay 1 lan',
+            },
+            onPressed: controller.currentSong == null
+                ? null
+                : controller.cycleRepeatMode,
+            iconSize: 34,
+            color: active ? AppColors.green2 : Colors.white,
+            disabledColor: AppColors.muted,
+            icon: Icon(
+              repeatMode == VibeRepeatMode.songOnce
+                  ? Icons.repeat_one_rounded
+                  : Icons.repeat_rounded,
+            ),
+          ),
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 160),
+            width: active ? 5 : 0,
+            height: active ? 5 : 0,
+            decoration: const BoxDecoration(
+              color: AppColors.green2,
+              shape: BoxShape.circle,
+            ),
+          ),
+        ],
       ),
     );
   }

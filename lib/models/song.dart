@@ -6,6 +6,9 @@ class Song {
   final String coverUrl;
   final Duration duration;
   final String streamUrl;
+  final String databaseId;
+  final String sourceType;
+  final String sourceId;
 
   const Song({
     required this.id,
@@ -15,9 +18,28 @@ class Song {
     this.coverUrl = '',
     this.duration = Duration.zero,
     this.streamUrl = '',
+    this.databaseId = '',
+    this.sourceType = '',
+    this.sourceId = '',
   });
 
   bool get hasStream => streamUrl.trim().isNotEmpty;
+
+  bool get isYoutube =>
+      sourceType == 'youtube' || (!hasStream && _isVideoId(id));
+
+  String get storedId {
+    final cleanDatabaseId = databaseId.trim();
+    return cleanDatabaseId.isEmpty ? id.trim() : cleanDatabaseId;
+  }
+
+  String get youtubeVideoId {
+    final cleanSourceId = sourceId.trim();
+    if (sourceType == 'youtube' && cleanSourceId.isNotEmpty) {
+      return cleanSourceId;
+    }
+    return id.trim();
+  }
 
   String get durationText {
     final seconds = duration.inSeconds;
@@ -40,6 +62,9 @@ class Song {
     String? coverUrl,
     Duration? duration,
     String? streamUrl,
+    String? databaseId,
+    String? sourceType,
+    String? sourceId,
   }) {
     return Song(
       id: id ?? this.id,
@@ -49,6 +74,9 @@ class Song {
       coverUrl: coverUrl ?? this.coverUrl,
       duration: duration ?? this.duration,
       streamUrl: streamUrl ?? this.streamUrl,
+      databaseId: databaseId ?? this.databaseId,
+      sourceType: sourceType ?? this.sourceType,
+      sourceId: sourceId ?? this.sourceId,
     );
   }
 
@@ -63,6 +91,9 @@ class Song {
         seconds: _toInt(json['durationSeconds'] ?? json['duration']),
       ),
       streamUrl: '${json['streamUrl'] ?? ''}',
+      databaseId: '${json['databaseId'] ?? json['dbId'] ?? ''}',
+      sourceType: '${json['sourceType'] ?? ''}',
+      sourceId: '${json['sourceId'] ?? ''}',
     );
   }
 
@@ -75,6 +106,9 @@ class Song {
       'coverUrl': coverUrl,
       'durationSeconds': duration.inSeconds,
       'streamUrl': streamUrl,
+      'databaseId': databaseId,
+      'sourceType': sourceType,
+      'sourceId': sourceId,
     };
   }
 
@@ -83,5 +117,9 @@ class Song {
     if (value is double) return value.toInt();
     if (value is String) return int.tryParse(value) ?? 0;
     return 0;
+  }
+
+  static bool _isVideoId(String value) {
+    return RegExp(r'^[A-Za-z0-9_-]{11}$').hasMatch(value.trim());
   }
 }

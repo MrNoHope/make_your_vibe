@@ -174,6 +174,13 @@ class CoverImage extends StatelessWidget {
               cacheHeight: size == double.infinity
                   ? null
                   : (size * MediaQuery.devicePixelRatioOf(context)).ceil(),
+              loadingBuilder: (context, child, loadingProgress) {
+                if (loadingProgress == null) {
+                  return child;
+                }
+
+                return fallback;
+              },
               errorBuilder: (_, __, ___) => fallback,
             ),
           );

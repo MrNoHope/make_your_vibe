@@ -1,10 +1,13 @@
+import 'dart:async';
+import 'dart:typed_data';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:mime/mime.dart';
 import 'package:path/path.dart' as path;
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' show StorageException;
 
-import '../core/music_api_config.dart';
 import '../models/playlist.dart';
 import '../models/song.dart';
 import 'supabase_gateway.dart';
@@ -44,80 +47,96 @@ class UploadedSongInput {
 
 class LibraryGateway {
   LibraryGateway({
-    SupabaseGateway? supabase,
     FirebaseAuth? firebaseAuth,
-  })  : _supabase = supabase ?? supabaseGateway,
-        _firebaseAuth = firebaseAuth;
+    FirebaseFirestore? firestore,
+    SupabaseGateway? supabase,
+  })  : _firebaseAuth = firebaseAuth,
+        _firestoreOverride = firestore,
+        _supabaseOverride = supabase;
 
-  static const songsBucket = 'songs';
-  static const coversBucket = 'covers';
-  static const signedUrlTtlSeconds = 21600;
   static const _youtubeAudioPrefix = 'youtube:';
-  static const _externalCoverPrefix = 'external:';
+  static const _youtubeDocPrefix = 'youtube_';
+  static const _sourceYoutube = 'youtube';
+  static const _sourceUpload = 'upload';
+  static const _serverGet = GetOptions(source: Source.server);
 
-  final SupabaseGateway _supabase;
   final FirebaseAuth? _firebaseAuth;
+  final FirebaseFirestore? _firestoreOverride;
+  final SupabaseGateway? _supabaseOverride;
 
   FirebaseAuth get _auth => _firebaseAuth ?? FirebaseAuth.instance;
+  FirebaseFirestore get _firestore =>
+      _firestoreOverride ?? FirebaseFirestore.instance;
+  SupabaseGateway get _supabase => _supabaseOverride ?? supabaseGateway;
 
-  bool get isConfigured => _supabase.isConfigured;
+  bool get isConfigured => Firebase.apps.isNotEmpty;
 
   Future<List<Playlist>> getAlbums() async {
-    final client = await _supabase.requireClient();
-    final ownerId = _currentOwnerId();
-    final rows = await client
-        .from('albums')
-        .select()
-        .eq('owner_id', ownerId)
-        .order('created_at');
+    final user = _requireUser();
+    final snapshot = await _firebaseRequest(
+      _albumsRef(user.uid)
+          .orderBy('createdAt', descending: true)
+          .get(_serverGet),
+    );
 
-    final playlists = <Playlist>[];
-    for (final row in _asRows(rows)) {
-      playlists.add(await _playlistFromRow(client, row));
-    }
-    return playlists;
+    return snapshot.docs.map(_playlistFromDoc).toList();
   }
 
   Future<Playlist> getAlbum(String albumId) async {
-    final client = await _supabase.requireClient();
-    final row = _asRow(
-      await client.from('albums').select().eq('id', albumId).single(),
-    );
-    final relationRows = await client
-        .from('album_songs')
-        .select('position,songs(*)')
-        .eq('album_id', albumId)
-        .order('position', ascending: true);
+    final user = _requireUser();
+    final cleanAlbumId = albumId.trim();
 
+    if (cleanAlbumId.isEmpty) {
+      throw const LibraryGatewayException('Album is required.');
+    }
+
+    final albumDoc = await _firebaseRequest(
+      _albumsRef(user.uid).doc(cleanAlbumId).get(_serverGet),
+    );
+    if (!albumDoc.exists) {
+      throw const LibraryGatewayException('Album not found.');
+    }
+
+    final itemSnapshot = await _firebaseRequest(
+      _albumItemsRef(user.uid, cleanAlbumId).orderBy('position').get(
+            _serverGet,
+          ),
+    );
     final songs = <Song>[];
-    for (final relationRow in _asRows(relationRows)) {
-      final songRow = relationRow['songs'];
-      if (songRow is Map) {
-        songs.add(await _songFromRow(client, _asRow(songRow)));
+
+    for (final itemDoc in itemSnapshot.docs) {
+      final songId = _string(itemDoc.data()['songId']).trim();
+      if (songId.isEmpty) {
+        continue;
+      }
+
+      final songDoc = await _firebaseRequest(
+        _songsRef(user.uid).doc(songId).get(_serverGet),
+      );
+      if (songDoc.exists) {
+        songs.add(_songFromDoc(songDoc));
       }
     }
 
-    return _playlistFromRowSync(
-      row,
-      coverUrl: await _signedCoverUrl(client, row['cover_path']),
+    final album = _playlistFromDoc(albumDoc);
+    return Playlist(
+      id: album.id,
+      title: album.title,
+      subtitle: album.subtitle,
+      coverUrl: album.coverUrl,
       songs: songs,
     );
   }
 
   Future<List<Song>> getSongs() async {
-    final client = await _supabase.requireClient();
-    final ownerId = _currentOwnerId();
-    final rows = await client
-        .from('songs')
-        .select()
-        .eq('owner_id', ownerId)
-        .order('created_at');
+    final user = _requireUser();
+    final snapshot = await _firebaseRequest(
+      _songsRef(user.uid).orderBy('createdAt', descending: true).get(
+            _serverGet,
+          ),
+    );
 
-    final songs = <Song>[];
-    for (final row in _asRows(rows)) {
-      songs.add(await _songFromRow(client, row));
-    }
-    return songs;
+    return snapshot.docs.map(_songFromDoc).toList();
   }
 
   Future<Playlist> createAlbum({
@@ -126,47 +145,44 @@ class LibraryGateway {
     Uint8List? coverBytes,
     String? coverName,
   }) async {
-    final client = await _supabase.requireClient();
-    final ownerId = _currentOwnerId();
+    final user = _requireUser();
     final cleanTitle = title.trim();
 
     if (cleanTitle.isEmpty) {
       throw const LibraryGatewayException('Album title is required.');
     }
 
-    final coverPath = coverBytes == null
-        ? ''
+    final cover = coverBytes == null
+        ? const _UploadedFile()
         : await _uploadBinary(
-            client: client,
-            bucket: coversBucket,
-            ownerId: ownerId,
-            folder: 'albums',
+            ownerId: user.uid,
+            folder: 'covers/albums',
             fileName: coverName ?? 'cover.jpg',
             bytes: coverBytes,
           );
 
-    final row = _asRow(
-      await client
-          .from('albums')
-          .insert({
-            'owner_id': ownerId,
-            'title': cleanTitle,
-            'subtitle': subtitle.trim(),
-            'cover_path': coverPath,
-          })
-          .select()
-          .single(),
+    final docRef = await _firebaseRequest(
+      _albumsRef(user.uid).add({
+        'ownerId': user.uid,
+        'title': cleanTitle,
+        'subtitle': subtitle.trim(),
+        'coverUrl': cover.url,
+        'coverPath': cover.path,
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }),
     );
 
-    return _playlistFromRow(
-      client,
-      row,
+    return Playlist(
+      id: docRef.id,
+      title: cleanTitle,
+      subtitle: subtitle.trim(),
+      coverUrl: cover.url,
     );
   }
 
   Future<Song> uploadSong(UploadedSongInput input) async {
-    final client = await _supabase.requireClient();
-    final ownerId = _currentOwnerId();
+    final user = _requireUser();
     final cleanTitle = input.title.trim();
 
     if (cleanTitle.isEmpty) {
@@ -177,58 +193,75 @@ class LibraryGateway {
       throw const LibraryGatewayException('Audio file is empty.');
     }
 
-    final audioPath = await _uploadBinary(
-      client: client,
-      bucket: songsBucket,
-      ownerId: ownerId,
+    final audio = await _uploadBinary(
+      ownerId: user.uid,
       folder: 'audio',
       fileName: input.fileName,
       bytes: input.audioBytes,
     );
-    final coverPath = input.coverBytes == null
-        ? ''
+    final cover = input.coverBytes == null
+        ? const _UploadedFile()
         : await _uploadBinary(
-            client: client,
-            bucket: coversBucket,
-            ownerId: ownerId,
-            folder: 'songs',
+            ownerId: user.uid,
+            folder: 'covers/songs',
             fileName: input.coverName ?? 'cover.jpg',
             bytes: input.coverBytes!,
           );
 
-    final row = _asRow(
-      await client
-          .from('songs')
-          .insert({
-            'owner_id': ownerId,
-            'title': cleanTitle,
-            'artist': input.artist.trim(),
-            'album': input.albumTitle.trim(),
-            'duration_seconds': input.duration.inSeconds,
-            'audio_path': audioPath,
-            'cover_path': coverPath,
-          })
-          .select()
-          .single(),
+    final docRef = await _firebaseRequest(
+      _songsRef(user.uid).add({
+        'ownerId': user.uid,
+        'title': cleanTitle,
+        'artist': input.artist.trim(),
+        'album': input.albumTitle.trim(),
+        'durationSeconds': input.duration.inSeconds,
+        'streamUrl': audio.url,
+        'audioPath': audio.path,
+        'coverUrl': cover.url,
+        'coverPath': cover.path,
+        'sourceType': _sourceUpload,
+        'sourceId': audio.path,
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }),
     );
 
     if (input.albumId.trim().isNotEmpty) {
       await _linkSongToAlbum(
-        client,
+        ownerId: user.uid,
         albumId: input.albumId,
-        songId: _string(row['id']),
+        songId: docRef.id,
       );
     }
 
-    return _songFromRow(client, row);
+    return Song(
+      id: docRef.id,
+      title: cleanTitle,
+      artist: input.artist.trim(),
+      album: input.albumTitle.trim(),
+      coverUrl: cover.url,
+      duration: input.duration,
+      streamUrl: audio.url,
+      databaseId: docRef.id,
+      sourceType: _sourceUpload,
+      sourceId: audio.path,
+    );
   }
 
   Future<void> addSongToAlbum({
     required String songId,
     required String albumId,
   }) async {
-    final client = await _supabase.requireClient();
-    await _linkSongToAlbum(client, albumId: albumId, songId: songId);
+    final user = _requireUser();
+    final resolvedSongId = await _resolveSongDocId(
+      ownerId: user.uid,
+      songId: songId,
+    );
+    await _linkSongToAlbum(
+      ownerId: user.uid,
+      albumId: albumId,
+      songId: resolvedSongId,
+    );
   }
 
   Future<Song> saveOnlineSongToAlbum({
@@ -236,61 +269,78 @@ class LibraryGateway {
     required String albumId,
     String albumTitle = '',
   }) async {
-    final client = await _supabase.requireClient();
-    final ownerId = _currentOwnerId();
+    final user = _requireUser();
     final cleanAlbumId = albumId.trim();
-    final sourceId = song.id.trim();
+    final sourceId = _youtubeSourceId(song);
 
     if (cleanAlbumId.isEmpty) {
       throw const LibraryGatewayException('Album is required.');
     }
-    if (sourceId.isEmpty) {
-      throw const LibraryGatewayException('Song id is required.');
+
+    final songRef = _songsRef(user.uid).doc(_youtubeDocId(sourceId));
+    final existing = await _firebaseRequest(songRef.get(_serverGet));
+
+    if (!existing.exists) {
+      await _firebaseRequest(
+        songRef.set({
+          'ownerId': user.uid,
+          'title':
+              song.title.trim().isEmpty ? 'Untitled song' : song.title.trim(),
+          'artist': song.artist.trim(),
+          'album': albumTitle.trim(),
+          'durationSeconds': song.duration.inSeconds,
+          'streamUrl': '',
+          'audioPath': '$_youtubeAudioPrefix$sourceId',
+          'coverUrl': song.coverUrl.trim(),
+          'coverPath': '',
+          'sourceType': _sourceYoutube,
+          'sourceId': sourceId,
+          'createdAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        }),
+      );
     }
 
-    final audioPath = '$_youtubeAudioPrefix$sourceId';
-    final existingRows = _asRows(
-      await client
-          .from('songs')
-          .select()
-          .eq('owner_id', ownerId)
-          .eq('audio_path', audioPath)
-          .limit(1),
-    );
-
-    final row = existingRows.isNotEmpty
-        ? existingRows.first
-        : _asRow(
-            await client
-                .from('songs')
-                .insert({
-                  'owner_id': ownerId,
-                  'title': song.title.trim().isEmpty
-                      ? 'Untitled song'
-                      : song.title.trim(),
-                  'artist': song.artist.trim(),
-                  'album': albumTitle.trim(),
-                  'duration_seconds': song.duration.inSeconds,
-                  'audio_path': audioPath,
-                  'cover_path': song.coverUrl.trim().isEmpty
-                      ? ''
-                      : '$_externalCoverPrefix${song.coverUrl.trim()}',
-                })
-                .select()
-                .single(),
-          );
-
     await _linkSongToAlbum(
-      client,
+      ownerId: user.uid,
       albumId: cleanAlbumId,
-      songId: _string(row['id']),
+      songId: songRef.id,
     );
 
-    return _songFromRow(client, row);
+    final savedDoc = await _firebaseRequest(songRef.get(_serverGet));
+    return _songFromDoc(savedDoc);
   }
 
-  Future<void> _linkSongToAlbum(
-    SupabaseClient client, {
+  User _requireUser() {
+    if (!isConfigured) {
+      throw const LibraryGatewayException('Firebase is not configured.');
+    }
+
+    final user = _auth.currentUser;
+    if (user == null) {
+      throw const LibraryGatewayException('Login required.');
+    }
+
+    return user;
+  }
+
+  CollectionReference<Map<String, dynamic>> _albumsRef(String ownerId) {
+    return _firestore.collection('users').doc(ownerId).collection('albums');
+  }
+
+  CollectionReference<Map<String, dynamic>> _songsRef(String ownerId) {
+    return _firestore.collection('users').doc(ownerId).collection('songs');
+  }
+
+  CollectionReference<Map<String, dynamic>> _albumItemsRef(
+    String ownerId,
+    String albumId,
+  ) {
+    return _albumsRef(ownerId).doc(albumId).collection('items');
+  }
+
+  Future<void> _linkSongToAlbum({
+    required String ownerId,
     required String albumId,
     required String songId,
   }) async {
@@ -301,37 +351,82 @@ class LibraryGateway {
       return;
     }
 
-    final existingRows = _asRows(
-      await client
-          .from('album_songs')
-          .select('song_id')
-          .eq('album_id', cleanAlbumId)
-          .eq('song_id', cleanSongId)
-          .limit(1),
+    final albumDoc = await _firebaseRequest(
+      _albumsRef(ownerId).doc(cleanAlbumId).get(_serverGet),
     );
+    if (!albumDoc.exists) {
+      throw const LibraryGatewayException('Album not found.');
+    }
 
-    if (existingRows.isNotEmpty) {
+    final songDoc = await _firebaseRequest(
+      _songsRef(ownerId).doc(cleanSongId).get(_serverGet),
+    );
+    if (!songDoc.exists) {
+      throw const LibraryGatewayException('Song not found.');
+    }
+
+    final itemRef = _albumItemsRef(ownerId, cleanAlbumId).doc(cleanSongId);
+    final existing = await _firebaseRequest(itemRef.get(_serverGet));
+    if (existing.exists) {
       return;
     }
 
-    await client.from('album_songs').insert({
-      'album_id': cleanAlbumId,
-      'song_id': cleanSongId,
-      'position': await _nextAlbumPosition(client, cleanAlbumId),
-    });
+    final currentItems = await _firebaseRequest(
+      _albumItemsRef(ownerId, cleanAlbumId).get(_serverGet),
+    );
+    await _firebaseRequest(
+      itemRef.set({
+        'songId': cleanSongId,
+        'position': currentItems.docs.length,
+        'createdAt': FieldValue.serverTimestamp(),
+      }),
+    );
   }
 
-  Future<int> _nextAlbumPosition(SupabaseClient client, String albumId) async {
-    final rows = await client
-        .from('album_songs')
-        .select('song_id')
-        .eq('album_id', albumId);
-    return _asRows(rows).length;
+  Future<String> _resolveSongDocId({
+    required String ownerId,
+    required String songId,
+  }) async {
+    final cleanSongId = songId.trim();
+
+    if (cleanSongId.isEmpty) {
+      throw const LibraryGatewayException('Song id is required.');
+    }
+
+    final directDoc = await _firebaseRequest(
+      _songsRef(ownerId).doc(cleanSongId).get(_serverGet),
+    );
+    if (directDoc.exists) {
+      return cleanSongId;
+    }
+
+    if (_isYoutubeVideoId(cleanSongId)) {
+      final youtubeDoc = await _firebaseRequest(
+        _songsRef(ownerId).doc(_youtubeDocId(cleanSongId)).get(_serverGet),
+      );
+      if (youtubeDoc.exists) {
+        return youtubeDoc.id;
+      }
+
+      final byYoutubeId = await _firebaseRequest(
+        _songsRef(ownerId)
+            .where('sourceType', isEqualTo: _sourceYoutube)
+            .where('sourceId', isEqualTo: cleanSongId)
+            .limit(1)
+            .get(_serverGet),
+      );
+
+      if (byYoutubeId.docs.isNotEmpty) {
+        return byYoutubeId.docs.first.id;
+      }
+    }
+
+    throw const LibraryGatewayException(
+      'Song is not saved in your library yet.',
+    );
   }
 
-  Future<String> _uploadBinary({
-    required SupabaseClient client,
-    required String bucket,
+  Future<_UploadedFile> _uploadBinary({
     required String ownerId,
     required String folder,
     required String fileName,
@@ -340,146 +435,99 @@ class LibraryGateway {
     final objectPath = _storagePath(ownerId, folder, fileName);
     final contentType = lookupMimeType(fileName, headerBytes: bytes) ??
         'application/octet-stream';
-
-    await client.storage.from(bucket).uploadBinary(
-          objectPath,
-          bytes,
-          fileOptions: FileOptions(
-            contentType: contentType,
-            upsert: false,
-          ),
-        );
-
-    return objectPath;
-  }
-
-  Future<Playlist> _playlistFromRow(
-    SupabaseClient client,
-    Map<String, dynamic> row, {
-    List<Song> songs = const [],
-  }) async {
-    return _playlistFromRowSync(
-      row,
-      coverUrl: await _signedCoverUrl(client, row['cover_path']),
-      songs: songs,
-    );
-  }
-
-  Playlist _playlistFromRowSync(
-    Map<String, dynamic> row, {
-    required String coverUrl,
-    List<Song> songs = const [],
-  }) {
-    return Playlist(
-      id: _string(row['id']),
-      title: _string(row['title']),
-      subtitle: _string(row['subtitle']),
-      coverUrl: coverUrl,
-      songs: songs,
-    );
-  }
-
-  Future<Song> _songFromRow(
-    SupabaseClient client,
-    Map<String, dynamic> row,
-  ) async {
-    final audioPath = _string(row['audio_path']);
-    final coverPath = _string(row['cover_path']);
-
-    return Song(
-      id: _string(row['id']),
-      title: _string(row['title']),
-      artist: _string(row['artist']),
-      album: _string(row['album']),
-      coverUrl: await _signedCoverUrl(client, coverPath),
-      duration: Duration(seconds: _int(row['duration_seconds'])),
-      streamUrl: await _streamUrlForAudioPath(client, audioPath),
-    );
-  }
-
-  Future<String> _signedCoverUrl(
-      SupabaseClient client, dynamic coverPath) async {
-    final cleanPath = _string(coverPath);
-    if (cleanPath.isEmpty) {
-      return '';
-    }
-    if (cleanPath.startsWith(_externalCoverPrefix)) {
-      return cleanPath.substring(_externalCoverPrefix.length);
-    }
-    if (cleanPath.startsWith('http://') || cleanPath.startsWith('https://')) {
-      return cleanPath;
-    }
+    final bucket = folder.startsWith('audio') ? 'songs' : 'covers';
 
     try {
-      return await client.storage
-          .from(coversBucket)
-          .createSignedUrl(cleanPath, signedUrlTtlSeconds);
-    } catch (_) {
-      return '';
+      final uploaded = await _supabase
+          .uploadBinary(
+            bucket: bucket,
+            objectPath: objectPath,
+            bytes: bytes,
+            contentType: contentType,
+          )
+          .timeout(const Duration(seconds: 18));
+
+      return _UploadedFile(
+        path: '${uploaded.bucket}/${uploaded.path}',
+        url: uploaded.publicUrl,
+      );
+    } on TimeoutException {
+      throw const LibraryGatewayException(
+        'Supabase Storage chua phan hoi. Kiem tra bucket songs/covers.',
+      );
+    } on SupabaseConfigException catch (error) {
+      throw LibraryGatewayException('$error');
+    } on StorageException catch (error) {
+      throw LibraryGatewayException(
+        'Supabase Storage loi: ${error.message}',
+      );
     }
   }
 
-  Future<String> _streamUrlForAudioPath(
-    SupabaseClient client,
-    String audioPath,
-  ) async {
-    final cleanPath = audioPath.trim();
-
-    if (cleanPath.isEmpty) {
-      return '';
+  Future<T> _firebaseRequest<T>(Future<T> request) async {
+    try {
+      return await request.timeout(const Duration(seconds: 12));
+    } on TimeoutException {
+      throw const LibraryGatewayException(
+        'Firestore chua san sang. Hay bat Firestore Database trong Firebase Console.',
+      );
+    } on FirebaseException catch (error) {
+      final message = error.message ?? '';
+      if (error.code == 'permission-denied' ||
+          message.contains('firestore.googleapis.com')) {
+        throw const LibraryGatewayException(
+          'Firestore chua bat hoac rules chua cho phep ghi du lieu.',
+        );
+      }
+      throw LibraryGatewayException(
+        message.isEmpty ? 'Firebase error: ${error.code}' : message,
+      );
     }
-
-    if (cleanPath.startsWith(_youtubeAudioPrefix)) {
-      final sourceId = cleanPath.substring(_youtubeAudioPrefix.length);
-      return _musicApiUri('/api/stream', {'id': sourceId}).toString();
-    }
-
-    return client.storage
-        .from(songsBucket)
-        .createSignedUrl(cleanPath, signedUrlTtlSeconds);
   }
 
-  Uri _musicApiUri(String path, Map<String, String> queryParameters) {
-    final base = Uri.parse(_effectiveMusicApiBaseUrl);
-    final basePath = base.path.endsWith('/')
-        ? base.path.substring(0, base.path.length - 1)
-        : base.path;
+  Playlist _playlistFromDoc(
+    DocumentSnapshot<Map<String, dynamic>> doc, {
+    List<Song> songs = const [],
+  }) {
+    final data = doc.data() ?? const <String, dynamic>{};
 
-    return base.replace(
-      path: '$basePath$path',
-      queryParameters: {
-        ...base.queryParameters,
-        ...queryParameters,
-      },
+    return Playlist(
+      id: doc.id,
+      title: _string(data['title']),
+      subtitle: _string(data['subtitle']),
+      coverUrl: _string(data['coverUrl']),
+      songs: songs,
     );
   }
 
-  String get _effectiveMusicApiBaseUrl {
-    final configured = MusicApiConfig.baseUrl.trim();
+  Song _songFromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
+    final data = doc.data() ?? const <String, dynamic>{};
+    final sourceType = _string(data['sourceType']);
+    final sourceId = _string(data['sourceId']);
+    final isYoutube = sourceType == _sourceYoutube;
 
-    if (!kIsWeb &&
-        defaultTargetPlatform == TargetPlatform.android &&
-        configured.startsWith('http://localhost')) {
-      return configured.replaceFirst('http://localhost', 'http://10.0.2.2');
-    }
-
-    if (!kIsWeb &&
-        defaultTargetPlatform == TargetPlatform.android &&
-        configured.startsWith('http://127.0.0.1')) {
-      return configured.replaceFirst('http://127.0.0.1', 'http://10.0.2.2');
-    }
-
-    return configured;
+    return Song(
+      id: isYoutube ? sourceId : doc.id,
+      title: _string(data['title']),
+      artist: _string(data['artist']),
+      album: _string(data['album']),
+      coverUrl: _string(data['coverUrl']),
+      duration: Duration(seconds: _int(data['durationSeconds'])),
+      streamUrl: isYoutube ? '' : _string(data['streamUrl']),
+      databaseId: doc.id,
+      sourceType: sourceType,
+      sourceId: sourceId,
+    );
   }
 
-  String _currentOwnerId() {
-    final user = _auth.currentUser;
+  String _youtubeSourceId(Song song) {
+    final sourceId = song.youtubeVideoId.trim();
 
-    if (user == null) {
-      throw const LibraryGatewayException('Login required.');
+    if (!_isYoutubeVideoId(sourceId)) {
+      throw LibraryGatewayException('Video YouTube khong hop le: $sourceId');
     }
 
-    return user.uid;
+    return sourceId;
   }
 
   String _storagePath(String ownerId, String folder, String fileName) {
@@ -494,18 +542,6 @@ class LibraryGateway {
     return safeName.isEmpty ? 'file' : safeName;
   }
 
-  List<Map<String, dynamic>> _asRows(dynamic value) {
-    if (value is! List) {
-      return const [];
-    }
-
-    return value.whereType<Map>().map(_asRow).toList();
-  }
-
-  Map<String, dynamic> _asRow(dynamic value) {
-    return Map<String, dynamic>.from(value as Map);
-  }
-
   String _string(dynamic value) => value == null ? '' : '$value';
 
   int _int(dynamic value) {
@@ -514,6 +550,22 @@ class LibraryGateway {
     if (value is String) return int.tryParse(value) ?? 0;
     return 0;
   }
+
+  bool _isYoutubeVideoId(String value) {
+    return RegExp(r'^[A-Za-z0-9_-]{11}$').hasMatch(value.trim());
+  }
+
+  String _youtubeDocId(String videoId) => '$_youtubeDocPrefix$videoId';
+}
+
+class _UploadedFile {
+  final String path;
+  final String url;
+
+  const _UploadedFile({
+    this.path = '',
+    this.url = '',
+  });
 }
 
 final libraryGateway = LibraryGateway();

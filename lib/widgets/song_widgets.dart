@@ -11,7 +11,6 @@ class SongTile extends StatelessWidget {
   final bool busy;
   final VoidCallback onTap;
   final VoidCallback? onToggle;
-  final VoidCallback? onStop;
   final VoidCallback? onOpen;
   final VoidCallback? onAddToAlbum;
 
@@ -23,7 +22,6 @@ class SongTile extends StatelessWidget {
     this.playing = false,
     this.busy = false,
     this.onToggle,
-    this.onStop,
     this.onOpen,
     this.onAddToAlbum,
   });
@@ -41,11 +39,9 @@ class SongTile extends StatelessWidget {
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
           color:
-              active ? AppColors.green.withValues(alpha: 0.16) : AppColors.card,
+              active ? AppColors.muted.withValues(alpha: 0.28) : AppColors.card,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: active ? AppColors.green : AppColors.line,
-          ),
+          border: active ? null : Border.all(color: AppColors.line),
         ),
         child: Row(
           children: [
@@ -93,7 +89,6 @@ class SongTile extends StatelessWidget {
                 playing: playing,
                 busy: busy,
                 onToggle: onToggle,
-                onStop: onStop,
                 onOpen: onOpen,
               )
             else
@@ -119,7 +114,6 @@ class SongList extends StatelessWidget {
   final bool activeBusy;
   final ValueChanged<Song> onSongTap;
   final VoidCallback? onActiveToggle;
-  final VoidCallback? onActiveStop;
   final VoidCallback? onActiveOpen;
   final ValueChanged<Song>? onSongAddToAlbum;
 
@@ -131,7 +125,6 @@ class SongList extends StatelessWidget {
     this.activePlaying = false,
     this.activeBusy = false,
     this.onActiveToggle,
-    this.onActiveStop,
     this.onActiveOpen,
     this.onSongAddToAlbum,
   });
@@ -149,6 +142,7 @@ class SongList extends StatelessWidget {
     return Column(
       children: songs.map((song) {
         final active = song.id == activeId;
+        final canAddToAlbum = onSongAddToAlbum != null && song.isYoutube;
 
         return Padding(
           padding: const EdgeInsets.only(bottom: 10),
@@ -159,10 +153,8 @@ class SongList extends StatelessWidget {
             busy: active && activeBusy,
             onTap: () => onSongTap(song),
             onToggle: active ? onActiveToggle : null,
-            onStop: active ? onActiveStop : null,
             onOpen: active ? onActiveOpen : null,
-            onAddToAlbum:
-                onSongAddToAlbum == null ? null : () => onSongAddToAlbum!(song),
+            onAddToAlbum: canAddToAlbum ? () => onSongAddToAlbum!(song) : null,
           ),
         );
       }).toList(),
@@ -174,29 +166,22 @@ class _ActiveSongControls extends StatelessWidget {
   final bool playing;
   final bool busy;
   final VoidCallback? onToggle;
-  final VoidCallback? onStop;
   final VoidCallback? onOpen;
 
   const _ActiveSongControls({
     required this.playing,
     required this.busy,
     required this.onToggle,
-    required this.onStop,
     required this.onOpen,
   });
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 112,
+      width: 78,
       child: Row(
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
-          _SongControlButton(
-            tooltip: 'Stop',
-            icon: Icons.stop_circle_rounded,
-            onPressed: onStop,
-          ),
           _SongControlButton(
             tooltip: playing ? 'Pause' : 'Play',
             icon: busy

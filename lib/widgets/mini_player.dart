@@ -44,10 +44,8 @@ class MiniPlayerBar extends StatelessWidget {
                 ),
                 child: Row(
                   children: [
-                    CoverImage(
-                      url: song.coverUrl,
-                      size: 50,
-                      radius: 6,
+                    _MiniArtwork(
+                      coverUrl: song.coverUrl,
                     ),
                     const SizedBox(width: 10),
                     Expanded(
@@ -81,7 +79,7 @@ class MiniPlayerBar extends StatelessWidget {
                     ),
                     const SizedBox(width: 4),
                     SizedBox(
-                      width: 132,
+                      width: 136,
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
@@ -89,11 +87,6 @@ class MiniPlayerBar extends StatelessWidget {
                             tooltip: 'Bài trước',
                             icon: Icons.skip_previous_rounded,
                             onPressed: controller.previousSong,
-                          ),
-                          _MiniControlButton(
-                            tooltip: 'Dừng',
-                            icon: Icons.stop_circle_rounded,
-                            onPressed: controller.reset,
                           ),
                           _MiniControlButton(
                             tooltip: controller.isPlaying ? 'Tạm dừng' : 'Phát',
@@ -112,6 +105,7 @@ class MiniPlayerBar extends StatelessWidget {
                             icon: Icons.skip_next_rounded,
                             onPressed: controller.nextSong,
                           ),
+                          _MiniRepeatButton(controller: controller),
                         ],
                       ),
                     ),
@@ -122,6 +116,23 @@ class MiniPlayerBar extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+class _MiniArtwork extends StatelessWidget {
+  final String coverUrl;
+
+  const _MiniArtwork({
+    required this.coverUrl,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return CoverImage(
+      url: coverUrl,
+      size: 50,
+      radius: 6,
     );
   }
 }
@@ -152,6 +163,40 @@ class _MiniControlButton extends StatelessWidget {
           icon,
           color: onPressed == null ? AppColors.muted : Colors.white,
           size: iconSize,
+        ),
+      ),
+    );
+  }
+}
+
+class _MiniRepeatButton extends StatelessWidget {
+  final VibeController controller;
+
+  const _MiniRepeatButton({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    final repeatMode = controller.repeatMode;
+    final active = repeatMode != VibeRepeatMode.off;
+
+    return SizedBox.square(
+      dimension: 32,
+      child: IconButton(
+        tooltip: switch (repeatMode) {
+          VibeRepeatMode.off => 'Lap lai',
+          VibeRepeatMode.song => 'Lap lai bai hien tai',
+          VibeRepeatMode.songOnce => 'Lap lai bai nay 1 lan',
+        },
+        padding: EdgeInsets.zero,
+        visualDensity: VisualDensity.compact,
+        onPressed:
+            controller.currentSong == null ? null : controller.cycleRepeatMode,
+        icon: Icon(
+          repeatMode == VibeRepeatMode.songOnce
+              ? Icons.repeat_one_rounded
+              : Icons.repeat_rounded,
+          color: active ? AppColors.green2 : Colors.white,
+          size: 24,
         ),
       ),
     );

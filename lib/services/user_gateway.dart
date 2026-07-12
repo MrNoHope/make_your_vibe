@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
+import '../core/google_oauth_config.dart';
 import '../models/user_profile.dart';
 
 abstract class UserGateway {
@@ -123,7 +124,9 @@ class FirebaseUserGateway implements UserGateway {
       return;
     }
 
-    await _googleSignIn.initialize();
+    await _googleSignIn.initialize(
+      serverClientId: GoogleOAuthConfig.serverClientId,
+    );
     _googleInitialized = true;
   }
 

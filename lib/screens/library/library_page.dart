@@ -15,11 +15,13 @@ import '../../widgets/song_widgets.dart';
 class LibraryPage extends StatefulWidget {
   final VibeController controller;
   final VoidCallback onOpenPlayer;
+  final VoidCallback onOpenSearch;
 
   const LibraryPage({
     super.key,
     required this.controller,
     required this.onOpenPlayer,
+    required this.onOpenSearch,
   });
 
   @override
@@ -87,19 +89,19 @@ class _LibraryPageState extends State<LibraryPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               TopBar(
-                title: 'Thu vien',
+                title: 'Thu vien ca nhan',
                 action: IconButton(
-                  tooltip: 'Refresh',
-                  onPressed: loadLibrary,
-                  icon: const Icon(Icons.refresh_rounded),
+                  tooltip: 'Tim kiem',
+                  onPressed: widget.onOpenSearch,
+                  icon: const Icon(Icons.search_rounded),
                 ),
               ),
               const SizedBox(height: 12),
               if (!configured) ...[
                 const BackendNotice(
                   icon: Icons.cloud_off_rounded,
-                  title: 'Chua cau hinh Supabase',
-                  message: 'Them SUPABASE_URL va SUPABASE_PUBLISHABLE_KEY.',
+                  title: 'Chua cau hinh Firebase',
+                  message: 'Them google-services.json va Firebase options.',
                 ),
               ] else ...[
                 Wrap(
@@ -136,7 +138,7 @@ class _LibraryPageState extends State<LibraryPage> {
                     const SizedBox(height: 16),
                   ],
                   SectionHeader(
-                    title: 'Album',
+                    title: 'Album ca nhan',
                     action: 'Tao',
                     onTap: showCreateAlbumDialog,
                   ),
@@ -145,7 +147,8 @@ class _LibraryPageState extends State<LibraryPage> {
                     const BackendNotice(
                       icon: Icons.album_rounded,
                       title: 'Chua co album',
-                      message: 'Tao album dau tien de gom nhac cua ban.',
+                      message:
+                          'Tao album ca nhan dau tien de gom nhac cua ban.',
                     )
                   else
                     Wrap(
@@ -171,7 +174,7 @@ class _LibraryPageState extends State<LibraryPage> {
                     const BackendNotice(
                       icon: Icons.music_note_rounded,
                       title: 'Chua co bai hat',
-                      message: 'Upload file audio de luu vao Supabase.',
+                      message: 'Upload file audio de luu vao Supabase Storage.',
                     )
                   else
                     SongList(
@@ -179,11 +182,13 @@ class _LibraryPageState extends State<LibraryPage> {
                       activeId: widget.controller.currentSong?.id,
                       activePlaying: widget.controller.isPlaying,
                       activeBusy: widget.controller.resolving,
-                      onSongTap: (song) {
-                        widget.controller.playSong(song, queue: songs);
+                      onSongTap: (song) async {
+                        await widget.controller.playSong(song, queue: songs);
+                        if (mounted) {
+                          widget.onOpenPlayer();
+                        }
                       },
                       onActiveToggle: widget.controller.togglePlay,
-                      onActiveStop: widget.controller.reset,
                       onActiveOpen: widget.onOpenPlayer,
                       onSongAddToAlbum: showAddLibrarySongToAlbumDialog,
                     ),
@@ -202,7 +207,7 @@ class _LibraryPageState extends State<LibraryPage> {
     PickedFileBytes? cover;
 
     try {
-      await showDialog<void>(
+      final created = await showDialog<bool>(
         context: context,
         builder: (dialogContext) {
           var busy = false;
@@ -211,7 +216,7 @@ class _LibraryPageState extends State<LibraryPage> {
             builder: (context, setDialogState) {
               return AlertDialog(
                 backgroundColor: AppColors.card,
-                title: const Text('Tao album'),
+                title: const Text('Tao album ca nhan'),
                 content: SingleChildScrollView(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -219,7 +224,7 @@ class _LibraryPageState extends State<LibraryPage> {
                       TextField(
                         controller: titleController,
                         decoration: const InputDecoration(
-                          labelText: 'Ten album',
+                          labelText: 'Ten album ca nhan',
                         ),
                       ),
                       const SizedBox(height: 10),
@@ -230,9 +235,8 @@ class _LibraryPageState extends State<LibraryPage> {
                         ),
                       ),
                       const SizedBox(height: 14),
-                      FilePickButton(
-                        icon: Icons.image_rounded,
-                        label: cover?.name ?? 'Cover',
+                      AlbumCoverPicker(
+                        cover: cover,
                         onTap: busy
                             ? null
                             : () async {
@@ -274,9 +278,8 @@ class _LibraryPageState extends State<LibraryPage> {
                               );
 
                               if (dialogContext.mounted) {
-                                Navigator.of(dialogContext).pop();
+                                Navigator.of(dialogContext).pop(true);
                               }
-                              await loadLibrary();
                             } catch (error) {
                               setDialogState(() {
                                 busy = false;
@@ -293,6 +296,11 @@ class _LibraryPageState extends State<LibraryPage> {
           );
         },
       );
+
+      if (created == true) {
+        await loadLibrary();
+        showSnack('Da tao album.');
+      }
     } finally {
       titleController.dispose();
       subtitleController.dispose();
@@ -304,10 +312,9 @@ class _LibraryPageState extends State<LibraryPage> {
     final artistController = TextEditingController();
     PickedFileBytes? audio;
     PickedFileBytes? cover;
-    var albumId = '';
 
     try {
-      await showDialog<void>(
+      final uploaded = await showDialog<bool>(
         context: context,
         builder: (dialogContext) {
           var busy = false;
@@ -354,31 +361,12 @@ class _LibraryPageState extends State<LibraryPage> {
                           labelText: 'Nghe si',
                         ),
                       ),
-                      const SizedBox(height: 10),
-                      DropdownButtonFormField<String>(
-                        initialValue: albumId,
-                        decoration: const InputDecoration(
-                          labelText: 'Album',
-                        ),
-                        items: [
-                          const DropdownMenuItem(
-                            value: '',
-                            child: Text('Khong album'),
-                          ),
-                          ...albums.map(
-                            (album) => DropdownMenuItem(
-                              value: album.id,
-                              child: Text(album.title),
-                            ),
-                          ),
-                        ],
-                        onChanged: busy
-                            ? null
-                            : (value) {
-                                setDialogState(() {
-                                  albumId = value ?? '';
-                                });
-                              },
+                      const SizedBox(height: 12),
+                      const BackendNotice(
+                        icon: Icons.info_outline_rounded,
+                        title: 'File upload luu rieng',
+                        message:
+                            'Album ca nhan chi them nhac YouTube tu trang Tim kiem hoac Trang chu.',
                       ),
                       const SizedBox(height: 14),
                       FilePickButton(
@@ -421,24 +409,20 @@ class _LibraryPageState extends State<LibraryPage> {
                             });
 
                             try {
-                              final album = albumById(albumId);
                               await libraryGateway.uploadSong(
                                 UploadedSongInput(
                                   title: titleController.text,
                                   artist: artistController.text,
                                   fileName: audio!.name,
                                   audioBytes: audio!.bytes,
-                                  albumId: album?.id ?? '',
-                                  albumTitle: album?.title ?? '',
                                   coverBytes: cover?.bytes,
                                   coverName: cover?.name,
                                 ),
                               );
 
                               if (dialogContext.mounted) {
-                                Navigator.of(dialogContext).pop();
+                                Navigator.of(dialogContext).pop(true);
                               }
-                              await loadLibrary();
                             } catch (error) {
                               setDialogState(() {
                                 busy = false;
@@ -455,6 +439,11 @@ class _LibraryPageState extends State<LibraryPage> {
           );
         },
       );
+
+      if (uploaded == true) {
+        await loadLibrary();
+        showSnack('Da upload bai hat.');
+      }
     } finally {
       titleController.dispose();
       artistController.dispose();
@@ -462,10 +451,15 @@ class _LibraryPageState extends State<LibraryPage> {
   }
 
   Future<void> showAddLibrarySongToAlbumDialog(Song song) async {
+    if (!song.isYoutube) {
+      showSnack('Album chi them nhac YouTube.');
+      return;
+    }
+
     final titleController = TextEditingController();
 
     try {
-      await showDialog<void>(
+      final message = await showDialog<String>(
         context: context,
         builder: (dialogContext) {
           var busy = false;
@@ -478,7 +472,7 @@ class _LibraryPageState extends State<LibraryPage> {
 
               return AlertDialog(
                 backgroundColor: AppColors.card,
-                title: const Text('Thêm vào album'),
+                title: const Text('Them vao album ca nhan'),
                 content: SingleChildScrollView(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -495,7 +489,7 @@ class _LibraryPageState extends State<LibraryPage> {
                         DropdownButtonFormField<String>(
                           initialValue: createNew ? '__new__' : selectedAlbumId,
                           decoration: const InputDecoration(
-                            labelText: 'Album',
+                            labelText: 'Album ca nhan',
                           ),
                           items: [
                             ...albums.map(
@@ -506,7 +500,7 @@ class _LibraryPageState extends State<LibraryPage> {
                             ),
                             const DropdownMenuItem(
                               value: '__new__',
-                              child: Text('Tạo album mới'),
+                              child: Text('Tao album moi'),
                             ),
                           ],
                           onChanged: busy
@@ -525,7 +519,7 @@ class _LibraryPageState extends State<LibraryPage> {
                         TextField(
                           controller: titleController,
                           decoration: const InputDecoration(
-                            labelText: 'Tên album mới',
+                            labelText: 'Ten album ca nhan moi',
                           ),
                         ),
                     ],
@@ -535,12 +529,18 @@ class _LibraryPageState extends State<LibraryPage> {
                   TextButton(
                     onPressed:
                         busy ? null : () => Navigator.of(dialogContext).pop(),
-                    child: const Text('Hủy'),
+                    child: const Text('Huy'),
                   ),
                   FilledButton.icon(
                     onPressed: busy
                         ? null
                         : () async {
+                            if (createNew &&
+                                titleController.text.trim().isEmpty) {
+                              showSnack('Nhap ten album.');
+                              return;
+                            }
+
                             setDialogState(() {
                               busy = true;
                             });
@@ -554,20 +554,20 @@ class _LibraryPageState extends State<LibraryPage> {
 
                               if (targetAlbum == null) {
                                 throw const LibraryGatewayException(
-                                  'Chọn album.',
+                                  'Chon album.',
                                 );
                               }
 
                               await libraryGateway.addSongToAlbum(
-                                songId: song.id,
+                                songId: song.storedId,
                                 albumId: targetAlbum.id,
                               );
 
                               if (dialogContext.mounted) {
-                                Navigator.of(dialogContext).pop();
+                                Navigator.of(dialogContext).pop(
+                                  'Da them vao ${targetAlbum.title}.',
+                                );
                               }
-                              await loadLibrary();
-                              showSnack('Đã thêm vào ${targetAlbum.title}.');
                             } catch (error) {
                               setDialogState(() {
                                 busy = false;
@@ -576,7 +576,7 @@ class _LibraryPageState extends State<LibraryPage> {
                             }
                           },
                     icon: const Icon(Icons.playlist_add_rounded),
-                    label: const Text('Thêm'),
+                    label: const Text('Them'),
                   ),
                 ],
               );
@@ -584,6 +584,11 @@ class _LibraryPageState extends State<LibraryPage> {
           );
         },
       );
+
+      if (message != null && message.isNotEmpty) {
+        await loadLibrary();
+        showSnack(message);
+      }
     } finally {
       titleController.dispose();
     }
@@ -594,7 +599,14 @@ class _LibraryPageState extends State<LibraryPage> {
       context: context,
       backgroundColor: AppColors.card,
       isScrollControlled: true,
-      builder: (context) {
+      builder: (sheetContext) {
+        void openPlayerFromSheet() {
+          Navigator.of(sheetContext).pop();
+          if (mounted) {
+            widget.onOpenPlayer();
+          }
+        }
+
         return SafeArea(
           child: FutureBuilder<Playlist>(
             future: libraryGateway.getAlbum(album.id),
@@ -621,7 +633,7 @@ class _LibraryPageState extends State<LibraryPage> {
                           ),
                         ),
                         IconButton(
-                          onPressed: () => Navigator.of(context).pop(),
+                          onPressed: () => Navigator.of(sheetContext).pop(),
                           icon: const Icon(Icons.close_rounded),
                         ),
                       ],
@@ -644,7 +656,8 @@ class _LibraryPageState extends State<LibraryPage> {
                       const BackendNotice(
                         icon: Icons.music_note_rounded,
                         title: 'Album trong',
-                        message: 'Search bai hat roi bam nut them vao album.',
+                        message:
+                            'Tim bai hat roi bam nut them vao album ca nhan.',
                       )
                     else
                       Flexible(
@@ -654,15 +667,15 @@ class _LibraryPageState extends State<LibraryPage> {
                             activeId: widget.controller.currentSong?.id,
                             activePlaying: widget.controller.isPlaying,
                             activeBusy: widget.controller.resolving,
-                            onSongTap: (song) {
-                              widget.controller.playSong(
+                            onSongTap: (song) async {
+                              await widget.controller.playSong(
                                 song,
                                 queue: loadedAlbum.songs,
                               );
+                              openPlayerFromSheet();
                             },
                             onActiveToggle: widget.controller.togglePlay,
-                            onActiveStop: widget.controller.reset,
-                            onActiveOpen: widget.onOpenPlayer,
+                            onActiveOpen: openPlayerFromSheet,
                           ),
                         ),
                       ),
@@ -768,6 +781,52 @@ class FilePickButton extends StatelessWidget {
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
       ),
+    );
+  }
+}
+
+class AlbumCoverPicker extends StatelessWidget {
+  final PickedFileBytes? cover;
+  final VoidCallback? onTap;
+
+  const AlbumCoverPicker({
+    super.key,
+    required this.cover,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final selectedCover = cover;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Center(
+          child: SizedBox.square(
+            dimension: 128,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(18),
+              child: selectedCover == null
+                  ? const CoverImage(
+                      url: '',
+                      size: 128,
+                      radius: 18,
+                    )
+                  : Image.memory(
+                      selectedCover.bytes,
+                      fit: BoxFit.cover,
+                    ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+        FilePickButton(
+          icon: Icons.image_rounded,
+          label: selectedCover?.name ?? 'Chon anh bia album',
+          onTap: onTap,
+        ),
+      ],
     );
   }
 }

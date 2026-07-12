@@ -26,11 +26,9 @@ Future<void> main() async {
 
 Future<void> _tryInitializeFirebase() async {
   try {
-    if (kIsWeb) {
-      await Firebase.initializeApp(options: DefaultFirebaseOptions.web);
-    } else {
-      await Firebase.initializeApp();
-    }
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
   } catch (_) {
     // Firebase config is added after the Firebase project is created.
   }
@@ -40,6 +38,6 @@ Future<void> _tryInitializeSupabase() async {
   try {
     await supabaseGateway.initialize();
   } catch (_) {
-    // Supabase stays disabled until the project URL/key are valid.
+    // Supabase is optional until upload storage is configured.
   }
 }

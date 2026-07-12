@@ -19,10 +19,9 @@ class SideRail extends StatelessWidget {
       _RailItem(Icons.home_rounded, 'Music'),
       _RailItem(Icons.graphic_eq_rounded, 'Sound'),
       _RailItem(Icons.tune_rounded, 'Mixer'),
-      _RailItem(Icons.search_rounded, 'Search'),
-      _RailItem(Icons.library_music_rounded, 'Library'),
-      _RailItem(Icons.settings_rounded, 'Settings'),
-      _RailItem(Icons.person_rounded, 'Profile'),
+      _RailItem(Icons.library_music_rounded, 'Library', pageIndex: 4),
+      _RailItem(Icons.settings_rounded, 'Settings', pageIndex: 5),
+      _RailItem(Icons.person_rounded, 'Profile', pageIndex: 6),
     ];
 
     return Container(
@@ -35,7 +34,8 @@ class SideRail extends StatelessWidget {
           const SizedBox(height: 22),
           ...List.generate(items.length, (i) {
             final item = items[i];
-            final selected = i == currentIndex;
+            final pageIndex = item.pageIndex ?? i;
+            final selected = pageIndex == currentIndex;
 
             return Padding(
               padding: const EdgeInsets.only(bottom: 12),
@@ -43,7 +43,7 @@ class SideRail extends StatelessWidget {
                 message: item.label,
                 child: InkWell(
                   borderRadius: BorderRadius.circular(18),
-                  onTap: () => onChanged(i),
+                  onTap: () => onChanged(pageIndex),
                   child: Container(
                     width: 36,
                     height: 36,
@@ -85,6 +85,7 @@ class SideRail extends StatelessWidget {
 class _RailItem {
   final IconData icon;
   final String label;
+  final int? pageIndex;
 
-  const _RailItem(this.icon, this.label);
+  const _RailItem(this.icon, this.label, {this.pageIndex});
 }

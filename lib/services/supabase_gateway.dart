@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -10,6 +12,18 @@ class SupabaseConfigException implements Exception {
 
   @override
   String toString() => message;
+}
+
+class SupabaseUploadResult {
+  final String bucket;
+  final String path;
+  final String publicUrl;
+
+  const SupabaseUploadResult({
+    required this.bucket,
+    required this.path,
+    required this.publicUrl,
+  });
 }
 
 class SupabaseGateway {
@@ -41,6 +55,32 @@ class SupabaseGateway {
     }
 
     return client;
+  }
+
+  Future<SupabaseUploadResult> uploadBinary({
+    required String bucket,
+    required String objectPath,
+    required Uint8List bytes,
+    required String contentType,
+  }) async {
+    final client = await requireClient();
+    final storage = client.storage.from(bucket);
+
+    await storage.uploadBinary(
+      objectPath,
+      bytes,
+      fileOptions: FileOptions(
+        contentType: contentType,
+        cacheControl: '604800',
+        upsert: false,
+      ),
+    );
+
+    return SupabaseUploadResult(
+      bucket: bucket,
+      path: objectPath,
+      publicUrl: storage.getPublicUrl(objectPath),
+    );
   }
 
   Future<SupabaseClient?> _initializeConfigured() async {

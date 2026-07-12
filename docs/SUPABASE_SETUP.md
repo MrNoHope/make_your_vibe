@@ -1,59 +1,48 @@
-# Supabase setup
+# Supabase Storage setup
 
-Firebase stays the auth source. Supabase stores user songs, covers, albums,
-and album-song links.
+Use Firebase for Auth and Firestore. Use Supabase only for uploaded files.
 
-## 1. Create Supabase project
+## Buckets
 
-Current project:
-
-- Project: `make-your-vibe`
-- Region: `ap-southeast-1`
-- Project URL: `https://diumqxbwtdpsyxmhptim.supabase.co`
-- Publishable key: `sb_publishable_PCWJRwsAVkauw67S9XucQw_L5Kg6o85`
-
-Run Flutter with:
-
-```powershell
-flutter run --dart-define=SUPABASE_URL="https://diumqxbwtdpsyxmhptim.supabase.co" --dart-define=SUPABASE_PUBLISHABLE_KEY="sb_publishable_PCWJRwsAVkauw67S9XucQw_L5Kg6o85"
-```
-
-`SUPABASE_ANON_KEY` also works if your dashboard still shows an anon public key.
-
-## 2. Connect Firebase Auth
-
-In Supabase Dashboard:
-
-1. Open Authentication > Third-party Auth.
-2. Enable Firebase.
-3. Use Firebase project id `make-your-vibe`.
-4. Configure the Firebase service account/JWKS settings requested by Supabase.
-
-The included RLS policies work with normal Firebase ID tokens. They check the
-Firebase issuer, project id, and UID in JWT `sub`, so no custom Firebase role
-claim is required.
-
-## 3. Create tables, buckets, and policies
-
-Run [supabase_setup.sql](supabase_setup.sql) in Supabase SQL Editor.
-
-It creates:
-
-- `albums`
-- `songs`
-- `album_songs`
-- private storage bucket `songs`
-- private storage bucket `covers`
-- RLS policies keyed by Firebase UID from JWT `sub`
-
-## 4. App behavior
-
-The Library tab loads Supabase albums/songs after login. Upload paths use:
+Create two public buckets in Supabase Storage:
 
 ```text
-users/<firebase_uid>/audio/...
-users/<firebase_uid>/songs/...
-users/<firebase_uid>/albums/...
+songs
+covers
 ```
 
-Audio playback uses signed URLs, valid for 6 hours.
+Recommended limits:
+
+```text
+songs: 50 MB, audio/mpeg, audio/mp4, audio/wav, audio/x-wav, video/mp4
+covers: 5 MB, image/jpeg, image/png, image/webp
+```
+
+Public buckets make playback URLs stable for demos. No expiring signed token is
+needed when the user opens the app again later.
+
+Fast path: run [supabase_storage_setup.sql](supabase_storage_setup.sql) in
+Supabase SQL Editor.
+
+## App config
+
+Default demo config is in `lib/core/supabase_config.dart`. Override it when
+needed:
+
+```powershell
+flutter run --dart-define=SUPABASE_URL=https://your-project.supabase.co --dart-define=SUPABASE_PUBLISHABLE_KEY=your-key
+```
+
+## Storage policy
+
+Firebase Third-party Auth is enabled for `make-your-vibe`. Policies use
+`anon, authenticated` because Firebase tokens may not include a Supabase
+`role` claim, but the policy still requires a valid Firebase JWT:
+
+```sql
+bucket_id in ('songs', 'covers')
+and (storage.foldername(name))[1] = 'users'
+and (storage.foldername(name))[2] = auth.jwt() ->> 'sub'
+and auth.jwt() ->> 'aud' = 'make-your-vibe'
+and auth.jwt() ->> 'iss' = 'https://securetoken.google.com/make-your-vibe'
+```

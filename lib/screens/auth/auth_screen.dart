@@ -29,6 +29,7 @@ class _AuthScreenState extends State<AuthScreen> {
   final passwordController = TextEditingController();
   final nameController = TextEditingController();
   bool loading = false;
+  bool showPassword = false;
   String errorMessage = '';
 
   @override
@@ -45,16 +46,23 @@ class _AuthScreenState extends State<AuthScreen> {
     final password = passwordController.text;
     final name = nameController.text.trim();
 
-    if (email.isEmpty || (!isForgotMode && password.isEmpty)) {
+    if (email.isEmpty || !email.contains('@')) {
       setState(() {
-        errorMessage = 'Nhập email và mật khẩu để tiếp tục.';
+        errorMessage = 'Nhap email hop le de tiep tuc.';
+      });
+      return;
+    }
+
+    if (!isForgotMode && password.length < 6) {
+      setState(() {
+        errorMessage = 'Mat khau phai co it nhat 6 ky tu.';
       });
       return;
     }
 
     if (isRegisterMode && name.isEmpty) {
       setState(() {
-        errorMessage = 'Nhập tên hiển thị để tạo tài khoản.';
+        errorMessage = 'Nhap ten hien thi de tao tai khoan.';
       });
       return;
     }
@@ -64,7 +72,7 @@ class _AuthScreenState extends State<AuthScreen> {
         await userGateway.sendPasswordReset(email);
         setState(() {
           mode = AuthMode.login;
-          errorMessage = 'Đã gửi email khôi phục mật khẩu.';
+          errorMessage = 'Da gui email khoi phuc mat khau.';
         });
         return;
       }
@@ -108,7 +116,7 @@ class _AuthScreenState extends State<AuthScreen> {
     } catch (error) {
       if (!mounted) return;
       setState(() {
-        errorMessage = '$error';
+        errorMessage = _friendlyAuthError(error);
       });
     } finally {
       if (mounted) {
@@ -117,6 +125,31 @@ class _AuthScreenState extends State<AuthScreen> {
         });
       }
     }
+  }
+
+  String _friendlyAuthError(Object error) {
+    final raw = '$error';
+    if (raw.contains('email-already-in-use')) {
+      return 'Email nay da duoc dang ky. Hay dang nhap.';
+    }
+    if (raw.contains('invalid-credential') ||
+        raw.contains('wrong-password') ||
+        raw.contains('user-not-found')) {
+      return 'Email hoac mat khau khong dung.';
+    }
+    if (raw.contains('weak-password')) {
+      return 'Mat khau qua yeu. Hay dung it nhat 6 ky tu.';
+    }
+    if (raw.contains('invalid-email')) {
+      return 'Email khong hop le.';
+    }
+    if (raw.contains('operation-not-allowed')) {
+      return 'Firebase chua bat dang nhap Email/Password.';
+    }
+    if (raw.contains('network-request-failed')) {
+      return 'Mat ket noi mang. Thu lai sau.';
+    }
+    return raw;
   }
 
   @override
@@ -190,11 +223,23 @@ class _AuthScreenState extends State<AuthScreen> {
               const SizedBox(height: 12),
               TextField(
                 controller: passwordController,
-                obscureText: true,
-                decoration: const InputDecoration(
+                obscureText: !showPassword,
+                decoration: InputDecoration(
                   hintText: 'Mật khẩu',
-                  prefixIcon: Icon(Icons.lock_rounded),
-                  suffixIcon: Icon(Icons.visibility_off_rounded),
+                  prefixIcon: const Icon(Icons.lock_rounded),
+                  suffixIcon: IconButton(
+                    tooltip: showPassword ? 'An mat khau' : 'Hien mat khau',
+                    onPressed: () {
+                      setState(() {
+                        showPassword = !showPassword;
+                      });
+                    },
+                    icon: Icon(
+                      showPassword
+                          ? Icons.visibility_rounded
+                          : Icons.visibility_off_rounded,
+                    ),
+                  ),
                 ),
               ),
             ],

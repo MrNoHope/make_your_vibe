@@ -44,14 +44,14 @@ class _SearchPageState extends State<SearchPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const TopBar(title: 'Search'),
+              const TopBar(title: 'Tim kiem'),
               const SizedBox(height: 14),
               TextField(
                 controller: textController,
                 textInputAction: TextInputAction.search,
                 onSubmitted: (_) => submit(),
                 decoration: InputDecoration(
-                  hintText: 'Nhập tên bài hát, ca sĩ...',
+                  hintText: 'Nhap ten bai hat, ca si...',
                   prefixIcon: const Icon(Icons.search_rounded),
                   suffixIcon: IconButton(
                     onPressed: submit,
@@ -73,14 +73,16 @@ class _SearchPageState extends State<SearchPage> {
                   activeId: widget.controller.currentSong?.id,
                   activePlaying: widget.controller.isPlaying,
                   activeBusy: widget.controller.resolving,
-                  onSongTap: (song) {
-                    widget.controller.playSong(
+                  onSongTap: (song) async {
+                    await widget.controller.playSong(
                       song,
                       queue: widget.controller.searchResults,
                     );
+                    if (mounted) {
+                      widget.onOpenPlayer();
+                    }
                   },
                   onActiveToggle: widget.controller.togglePlay,
-                  onActiveStop: widget.controller.reset,
                   onActiveOpen: widget.onOpenPlayer,
                   onSongAddToAlbum: showAddToAlbumDialog,
                 ),
@@ -88,7 +90,7 @@ class _SearchPageState extends State<SearchPage> {
                 const SizedBox(height: 12),
                 BackendNotice(
                   icon: Icons.error_outline_rounded,
-                  title: 'Lỗi',
+                  title: 'Loi',
                   message: widget.controller.errorMessage,
                 ),
               ],
@@ -100,8 +102,8 @@ class _SearchPageState extends State<SearchPage> {
                   runSpacing: 9,
                   children: [
                     SearchChip(
-                        label: 'Sơn Tùng',
-                        onTap: () => quickSearch('Sơn Tùng')),
+                        label: 'Son Tung',
+                        onTap: () => quickSearch('Son Tung')),
                     SearchChip(label: 'Lofi', onTap: () => quickSearch('lofi')),
                     SearchChip(
                         label: 'Chill',
@@ -127,7 +129,7 @@ class _SearchPageState extends State<SearchPage> {
 
   Future<void> showAddToAlbumDialog(Song song) async {
     if (!libraryGateway.isConfigured) {
-      showSnack('Chưa cấu hình Supabase.');
+      showSnack('Chua cau hinh Firebase.');
       return;
     }
 
@@ -138,7 +140,7 @@ class _SearchPageState extends State<SearchPage> {
 
       if (!mounted) return;
 
-      await showDialog<void>(
+      final message = await showDialog<String>(
         context: context,
         builder: (dialogContext) {
           var busy = false;
@@ -155,7 +157,7 @@ class _SearchPageState extends State<SearchPage> {
 
               return AlertDialog(
                 backgroundColor: AppColors.card,
-                title: const Text('Thêm vào album'),
+                title: const Text('Them vao album ca nhan'),
                 content: SingleChildScrollView(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -172,7 +174,7 @@ class _SearchPageState extends State<SearchPage> {
                         DropdownButtonFormField<String>(
                           initialValue: createNew ? '__new__' : selectedAlbumId,
                           decoration: const InputDecoration(
-                            labelText: 'Album',
+                            labelText: 'Album ca nhan',
                           ),
                           items: [
                             ...availableAlbums.map(
@@ -183,7 +185,7 @@ class _SearchPageState extends State<SearchPage> {
                             ),
                             const DropdownMenuItem(
                               value: '__new__',
-                              child: Text('Tạo album mới'),
+                              child: Text('Tao album moi'),
                             ),
                           ],
                           onChanged: busy
@@ -202,7 +204,7 @@ class _SearchPageState extends State<SearchPage> {
                         TextField(
                           controller: newAlbumController,
                           decoration: const InputDecoration(
-                            labelText: 'Tên album mới',
+                            labelText: 'Ten album ca nhan moi',
                           ),
                         ),
                     ],
@@ -212,12 +214,18 @@ class _SearchPageState extends State<SearchPage> {
                   TextButton(
                     onPressed:
                         busy ? null : () => Navigator.of(dialogContext).pop(),
-                    child: const Text('Hủy'),
+                    child: const Text('Huy'),
                   ),
                   FilledButton.icon(
                     onPressed: busy
                         ? null
                         : () async {
+                            if (createNew &&
+                                newAlbumController.text.trim().isEmpty) {
+                              showSnack('Nhap ten album.');
+                              return;
+                            }
+
                             setDialogState(() {
                               busy = true;
                             });
@@ -231,7 +239,7 @@ class _SearchPageState extends State<SearchPage> {
 
                               if (targetAlbum == null) {
                                 throw const LibraryGatewayException(
-                                  'Chọn album.',
+                                  'Chon album.',
                                 );
                               }
 
@@ -242,9 +250,10 @@ class _SearchPageState extends State<SearchPage> {
                               );
 
                               if (dialogContext.mounted) {
-                                Navigator.of(dialogContext).pop();
+                                Navigator.of(dialogContext).pop(
+                                  'Da them vao ${targetAlbum.title}.',
+                                );
                               }
-                              showSnack('Đã thêm vào ${targetAlbum.title}.');
                             } catch (error) {
                               setDialogState(() {
                                 busy = false;
@@ -253,7 +262,7 @@ class _SearchPageState extends State<SearchPage> {
                             }
                           },
                     icon: const Icon(Icons.playlist_add_rounded),
-                    label: const Text('Thêm'),
+                    label: const Text('Them'),
                   ),
                 ],
               );
@@ -261,6 +270,10 @@ class _SearchPageState extends State<SearchPage> {
           );
         },
       );
+
+      if (message != null && message.isNotEmpty) {
+        showSnack(message);
+      }
     } catch (error) {
       showSnack('$error');
     } finally {
