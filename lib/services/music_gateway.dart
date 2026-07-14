@@ -1,9 +1,7 @@
-import 'dart:convert';
+import 'dart:async';
 
-import 'package:flutter/foundation.dart';
-import 'package:http/http.dart' as http;
+import 'package:youtube_explode_dart/youtube_explode_dart.dart' hide Playlist;
 
-import '../core/youtube_api_config.dart';
 import '../models/playlist.dart';
 import '../models/song.dart';
 
@@ -16,24 +14,16 @@ abstract class MusicGateway {
 }
 
 class YoutubeMusicGateway implements MusicGateway {
-  YoutubeMusicGateway({
-    http.Client? httpClient,
-    String apiKey = YoutubeApiConfig.apiKey,
-  })  : _httpClient = httpClient ?? http.Client(),
-        _ownsHttpClient = httpClient == null,
-        _apiKey = apiKey;
+  YoutubeMusicGateway({YoutubeExplode? youtube})
+      : _yt = youtube ?? YoutubeExplode();
 
-  final http.Client _httpClient;
-  final bool _ownsHttpClient;
-  final String _apiKey;
+  static const _networkTimeout = Duration(seconds: 14);
 
-  static const _timeout = Duration(seconds: 12);
-
-  int get _resultLimit => kIsWeb ? 20 : 8;
+  final YoutubeExplode _yt;
 
   @override
   Future<List<Song>> getHomeTracks() {
-    return searchTracks('vietnam music');
+    return searchTracks('vpop chill');
   }
 
   @override
@@ -44,68 +34,51 @@ class YoutubeMusicGateway implements MusicGateway {
       return [];
     }
 
-    final key = _apiKey.trim();
+    final videos = await _yt.search.search(query).timeout(
+          _networkTimeout,
+          onTimeout: () => throw TimeoutException(
+            'Ket noi YouTube qua lau. Kiem tra mang roi thu lai.',
+          ),
+        );
 
-    if (key.isEmpty) {
-      throw Exception('Missing YOUTUBE_API_KEY');
-    }
-
-    final searchJson = await _getJson(
-      Uri.https('www.googleapis.com', '/youtube/v3/search', {
-        'key': key,
-        'part': 'snippet',
-        'type': 'video',
-        'videoCategoryId': '10',
-        'videoEmbeddable': 'true',
-        'maxResults': '$_resultLimit',
-        'order': 'relevance',
-        'regionCode': 'VN',
-        'relevanceLanguage': 'vi',
-        'safeSearch': 'moderate',
-        'q': '$query music official audio MV',
-      }),
-    );
-
-    final items = searchJson['items'];
-
-    if (items is! List) {
-      throw Exception('YouTube Data API returned no search items');
-    }
-
-    final songs = items
-        .whereType<Map>()
-        .map((item) => _songFromSearchItem(item.cast<String, dynamic>()))
-        .whereType<Song>()
-        .toList();
-
-    if (songs.isEmpty) {
-      return songs;
-    }
-
-    return _songsWithDurations(songs, key);
+    return videos.take(20).map(_songFromVideo).toList(growable: false);
   }
 
   @override
   Future<Song> resolveStream(Song song) async {
-    if (song.isYoutube) {
-      final videoId = song.youtubeVideoId.trim();
+    final videoId = _youtubeVideoId(song);
 
-      if (!_isYoutubeVideoId(videoId)) {
-        throw Exception('Video YouTube khong hop le: $videoId');
+    if (videoId.isEmpty) {
+      if (song.hasStream) {
+        return song;
       }
-
-      return song.copyWith(
-        streamUrl: 'youtube:$videoId',
-        sourceType: 'youtube',
-        sourceId: videoId,
-      );
+      throw Exception('Bai hat chua co YouTube video id hoac streamUrl');
     }
 
-    if (song.hasStream) {
-      return song;
+    final manifest = await _yt.videos.streams.getManifest(
+      videoId,
+      ytClients: [
+        YoutubeApiClient.ios,
+        YoutubeApiClient.androidVr,
+      ],
+    ).timeout(
+      _networkTimeout,
+      onTimeout: () => throw TimeoutException(
+        'Lay stream YouTube qua lau. Kiem tra mang roi thu lai.',
+      ),
+    );
+    final streamInfo = _bestAudioStream(manifest);
+
+    if (streamInfo == null) {
+      throw Exception('Khong lay duoc stream YouTube cho bai nay');
     }
 
-    throw Exception('Bai hat chua co streamUrl');
+    return song.copyWith(
+      id: videoId,
+      streamUrl: streamInfo.url.toString(),
+      sourceType: 'youtube',
+      sourceId: videoId,
+    );
   }
 
   @override
@@ -115,156 +88,54 @@ class YoutubeMusicGateway implements MusicGateway {
 
   @override
   void close() {
-    if (_ownsHttpClient) {
-      _httpClient.close();
-    }
+    _yt.close();
   }
 
-  Future<Map<String, dynamic>> _getJson(Uri uri) async {
-    final response = await _httpClient.get(
-      uri,
-      headers: const {'accept': 'application/json'},
-    ).timeout(_timeout);
-    final body = utf8.decode(response.bodyBytes);
-
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw Exception(_readApiError(response.statusCode, body));
-    }
-
-    final decoded = jsonDecode(body);
-
-    if (decoded is! Map<String, dynamic>) {
-      throw Exception('YouTube Data API returned invalid JSON');
-    }
-
-    return decoded;
-  }
-
-  Future<List<Song>> _songsWithDurations(
-    List<Song> songs,
-    String key,
-  ) async {
-    final ids = songs.map((song) => song.id).where((id) => id.isNotEmpty);
-    final videosJson = await _getJson(
-      Uri.https('www.googleapis.com', '/youtube/v3/videos', {
-        'key': key,
-        'part': 'contentDetails',
-        'id': ids.join(','),
-      }),
-    );
-    final items = videosJson['items'];
-
-    if (items is! List) {
-      return songs;
-    }
-
-    final durationsById = <String, Duration>{};
-
-    for (final item in items.whereType<Map>()) {
-      final id = '${item['id'] ?? ''}';
-      final details = item['contentDetails'];
-      final duration = details is Map
-          ? _parseIso8601Duration('${details['duration'] ?? ''}')
-          : Duration.zero;
-
-      if (id.isNotEmpty && duration > Duration.zero) {
-        durationsById[id] = duration;
-      }
-    }
-
-    return songs.map((song) {
-      return song.copyWith(duration: durationsById[song.id] ?? song.duration);
-    }).toList();
-  }
-
-  Song? _songFromSearchItem(Map<String, dynamic> item) {
-    final id = item['id'];
-    final snippet = item['snippet'];
-
-    if (id is! Map || snippet is! Map) {
-      return null;
-    }
-
-    final videoId = '${id['videoId'] ?? ''}'.trim();
-
-    if (!_isYoutubeVideoId(videoId)) {
-      return null;
-    }
-
-    final thumbnails = snippet['thumbnails'];
+  Song _songFromVideo(Video video) {
+    final videoId = video.id.value;
 
     return Song(
       id: videoId,
-      title: _decodeHtml('${snippet['title'] ?? 'Untitled'}'),
-      artist: _decodeHtml('${snippet['channelTitle'] ?? 'YouTube'}'),
-      coverUrl: thumbnails is Map
-          ? _readThumbnailUrl(thumbnails.cast<String, dynamic>())
-          : '',
+      title: video.title,
+      artist: video.author,
+      album: 'YouTube',
+      coverUrl: video.thumbnails.highResUrl,
+      duration: video.duration ?? Duration.zero,
+      streamUrl: '',
       sourceType: 'youtube',
       sourceId: videoId,
     );
   }
 
-  bool _isYoutubeVideoId(String value) {
-    return RegExp(r'^[A-Za-z0-9_-]{11}$').hasMatch(value);
-  }
-
-  String _readApiError(int statusCode, String body) {
-    try {
-      final decoded = jsonDecode(body);
-      final error = decoded is Map ? decoded['error'] : null;
-      final message = error is Map ? error['message'] : null;
-
-      if (message != null) {
-        return '$message';
-      }
-    } catch (_) {}
-
-    return 'YouTube Data API HTTP $statusCode: $body';
-  }
-
-  String _readThumbnailUrl(Map<String, dynamic> thumbnails) {
-    for (final key in ['maxres', 'standard', 'high', 'medium', 'default']) {
-      final thumbnail = thumbnails[key];
-
-      if (thumbnail is! Map) {
-        continue;
-      }
-
-      final url = thumbnail['url'];
-
-      if (url is String && url.trim().isNotEmpty) {
-        return url;
-      }
-    }
-
-    return '';
-  }
-
-  String _decodeHtml(String value) {
-    return value
-        .replaceAll('&amp;', '&')
-        .replaceAll('&quot;', '"')
-        .replaceAll('&#39;', "'")
-        .replaceAll('&lt;', '<')
-        .replaceAll('&gt;', '>');
-  }
-
-  Duration _parseIso8601Duration(String value) {
-    final match = RegExp(
-      r'^P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$',
-    ).firstMatch(value);
-
-    if (match == null) {
-      return Duration.zero;
-    }
-
-    return Duration(
-      days: int.tryParse(match.group(1) ?? '') ?? 0,
-      hours: int.tryParse(match.group(2) ?? '') ?? 0,
-      minutes: int.tryParse(match.group(3) ?? '') ?? 0,
-      seconds: int.tryParse(match.group(4) ?? '') ?? 0,
+  AudioStreamInfo? _bestAudioStream(StreamManifest manifest) {
+    final audioOnly = manifest.audioOnly.toList();
+    audioOnly.sort(
+      (left, right) => right.bitrate.bitsPerSecond.compareTo(
+        left.bitrate.bitsPerSecond,
+      ),
     );
+
+    if (audioOnly.isNotEmpty) {
+      return audioOnly.first;
+    }
+
+    final muxed = manifest.muxed.toList();
+    muxed.sort(
+      (left, right) => right.bitrate.bitsPerSecond.compareTo(
+        left.bitrate.bitsPerSecond,
+      ),
+    );
+
+    return muxed.isEmpty ? null : muxed.first;
+  }
+
+  String _youtubeVideoId(Song song) {
+    if (song.sourceType == 'youtube' && song.sourceId.trim().isNotEmpty) {
+      return song.sourceId.trim();
+    }
+
+    final id = song.id.trim();
+    return RegExp(r'^[A-Za-z0-9_-]{11}$').hasMatch(id) ? id : '';
   }
 }
 

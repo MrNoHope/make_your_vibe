@@ -65,13 +65,13 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
             subtitle: widget.darkMode
                 ? lang.text(
-              vi: 'Đang dùng giao diện tối',
-              en: 'Dark theme is active',
-            )
+                    vi: 'Đang dùng giao diện tối',
+                    en: 'Dark theme is active',
+                  )
                 : lang.text(
-              vi: 'Đang dùng giao diện sáng',
-              en: 'Light theme is active',
-            ),
+                    vi: 'Đang dùng giao diện sáng',
+                    en: 'Light theme is active',
+                  ),
             trailing: Switch(
               value: widget.darkMode,
               onChanged: widget.onDarkModeChanged,
@@ -84,8 +84,8 @@ class _SettingsPageState extends State<SettingsPage> {
               en: 'Background Playback',
             ),
             subtitle: lang.text(
-              vi: 'Sẽ nối audio service ở giai đoạn sau',
-              en: 'Will connect audio service later',
+              vi: 'Đã kết nối audio service và thông báo điều khiển',
+              en: 'Audio service and media notification are active',
             ),
             trailing: Switch(
               value: backgroundPlayback,

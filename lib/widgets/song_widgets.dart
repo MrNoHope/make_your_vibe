@@ -142,7 +142,7 @@ class SongList extends StatelessWidget {
     return Column(
       children: songs.map((song) {
         final active = song.id == activeId;
-        final canAddToAlbum = onSongAddToAlbum != null && song.isYoutube;
+        final canAddToAlbum = onSongAddToAlbum != null;
 
         return Padding(
           padding: const EdgeInsets.only(bottom: 10),

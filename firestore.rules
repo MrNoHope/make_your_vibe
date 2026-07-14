@@ -7,6 +7,14 @@ service cloud.firestore {
         && request.auth.uid == userId;
     }
 
+    match /sharedAlbums/{shareId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+        && request.resource.data.ownerId == request.auth.uid;
+      allow update, delete: if request.auth != null
+        && resource.data.ownerId == request.auth.uid;
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

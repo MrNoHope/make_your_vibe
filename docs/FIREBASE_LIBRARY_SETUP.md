@@ -47,6 +47,8 @@ flutter build apk --debug --split-per-abi --dart-define=GOOGLE_WEB_CLIENT_ID=<we
 users/{uid}/albums/{albumId}
 users/{uid}/albums/{albumId}/items/{songId}
 users/{uid}/songs/{songId}
+users/{uid}/sharedAlbums/{shareCode}
+sharedAlbums/{shareCode}
 ```
 
 YouTube songs store metadata only:
@@ -66,6 +68,11 @@ sourceId: songs/users/<uid>/audio/<file>
 streamUrl: <supabase public url>
 ```
 
+Shared albums store a snapshot of album metadata and song metadata in
+`sharedAlbums/{shareCode}`. Friends import the share code into
+`users/{uid}/sharedAlbums/{shareCode}` and stream from the stored YouTube id or
+uploaded file URL.
+
 ## Firestore rules
 
 Firebase Console > Firestore Database > Rules:
@@ -77,6 +84,14 @@ service cloud.firestore {
     match /users/{userId}/{document=**} {
       allow read, write: if request.auth != null
         && request.auth.uid == userId;
+    }
+
+    match /sharedAlbums/{shareId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+        && request.resource.data.ownerId == request.auth.uid;
+      allow update, delete: if request.auth != null
+        && resource.data.ownerId == request.auth.uid;
     }
   }
 }

@@ -4,7 +4,6 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart' as ja;
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:youtube_player_flutter/youtube_player_flutter.dart' as yt;
 
 import '../models/song.dart';
 import '../services/audio_gateway.dart';
@@ -19,24 +18,19 @@ enum VibeRepeatMode {
 class VibeController extends ChangeNotifier {
   final MusicGateway music = musicGateway;
   final AudioGateway audio = audioGateway;
-  yt.YoutubePlayerController? youtubeController;
+
   static const _lastSongKey = 'make_your_vibe.last_song';
-  static const _youtubeParams = yt.YoutubePlayerParams(
-    enableCaption: false,
-    enableKeyboard: false,
-    mute: false,
-    pointerEvents: yt.PointerEvents.none,
-    showControls: false,
-    showFullscreenButton: false,
-    showVideoAnnotations: false,
-    strictRelatedVideos: true,
-    videoStateUpdateInterval: 500,
-  );
+  static const _listeningHistoryKey = 'make_your_vibe.listening_history';
+  static const _searchHistoryKey = 'make_your_vibe.search_history';
+  static const _maxListeningHistory = 24;
+  static const _maxSearchHistory = 16;
 
   Song? currentSong;
   List<Song> homeSongs = [];
   List<Song> searchResults = [];
   List<Song> activeQueue = [];
+  List<Song> listeningHistory = [];
+  List<String> searchHistory = [];
 
   Duration position = Duration.zero;
   Duration? duration;
@@ -48,7 +42,6 @@ class VibeController extends ChangeNotifier {
   bool _playRequested = false;
   bool _repeatOnceUsed = false;
   bool _seeking = false;
-  bool _youtubeEndedHandled = false;
   int currentIndex = 0;
   String errorMessage = '';
   VibeRepeatMode repeatMode = VibeRepeatMode.off;
@@ -57,15 +50,10 @@ class VibeController extends ChangeNotifier {
   StreamSubscription<Duration>? _audioPositionSub;
   StreamSubscription<Duration?>? _audioDurationSub;
   StreamSubscription<Object>? _audioErrorSub;
-  StreamSubscription<yt.YoutubePlayerValue>? _youtubeStateSub;
-  StreamSubscription<yt.YoutubeVideoState>? _youtubePositionSub;
+  StreamSubscription<AudioGatewayCommand>? _audioCommandSub;
 
   VibeController() {
     _audioStateSub = audio.playerStateStream.listen((state) {
-      if (currentSong?.isYoutube == true) {
-        return;
-      }
-
       isPlaying = state.playing ||
           (_playRequested &&
               state.processingState == ja.ProcessingState.buffering);
@@ -78,32 +66,29 @@ class VibeController extends ChangeNotifier {
       notifyListeners();
     });
     _audioPositionSub = audio.positionStream.listen((value) {
-      if (currentSong?.isYoutube == true) {
-        return;
-      }
-
       position = value;
       notifyListeners();
     });
     _audioDurationSub = audio.durationStream.listen((value) {
-      if (currentSong?.isYoutube == true) {
-        return;
-      }
-
       duration = value;
       notifyListeners();
     });
     _audioErrorSub = audio.playbackErrorStream.listen((error) {
-      if (currentSong?.isYoutube == true) {
-        return;
-      }
-
       resolving = false;
       isPlaying = false;
       errorMessage = 'Khong phat duoc bai nay: $error';
       notifyListeners();
     });
+    _audioCommandSub = audio.commandStream.listen((command) {
+      switch (command) {
+        case AudioGatewayCommand.previous:
+          unawaited(previousSong());
+        case AudioGatewayCommand.next:
+          unawaited(nextSong());
+      }
+    });
     unawaited(_restoreLastSong());
+    unawaited(_restoreHistories());
   }
 
   Future<void> loadHomeSongs() async {
@@ -142,6 +127,7 @@ class VibeController extends ChangeNotifier {
     try {
       searchResults = await music.searchTracks(query);
       activeQueue = searchResults;
+      unawaited(_addSearchHistory(query));
     } catch (error) {
       errorMessage = 'Search loi: $error';
     }
@@ -224,13 +210,7 @@ class VibeController extends ChangeNotifier {
     }
     notifyListeners();
 
-    if (song.isYoutube) {
-      await _playYoutubeSong(song);
-      return;
-    }
-
     try {
-      await _disposeYoutubeController();
       await audio.stop();
       final playableSong = await music.resolveStream(song);
       currentSong = playableSong;
@@ -239,8 +219,8 @@ class VibeController extends ChangeNotifier {
       await audio.play(playableSong);
       _playRequested = true;
       isPlaying = true;
-
       unawaited(_saveLastSong(playableSong));
+      unawaited(_addListeningHistory(playableSong));
     } catch (error) {
       errorMessage = 'Khong phat duoc bai nay: $error';
       _playRequested = false;
@@ -249,132 +229,6 @@ class VibeController extends ChangeNotifier {
 
     resolving = false;
     notifyListeners();
-  }
-
-  Future<void> _playYoutubeSong(
-    Song song, {
-    Duration startAt = Duration.zero,
-  }) async {
-    final videoId = song.youtubeVideoId.trim();
-
-    if (!_isYoutubeVideoId(videoId)) {
-      errorMessage = 'Video YouTube khong hop le: $videoId';
-      _playRequested = false;
-      isPlaying = false;
-      resolving = false;
-      notifyListeners();
-      return;
-    }
-
-    final playableSong = song.copyWith(
-      streamUrl: 'youtube:$videoId',
-      sourceType: 'youtube',
-      sourceId: videoId,
-    );
-    final startSeconds = startAt.inMilliseconds / 1000;
-
-    try {
-      await audio.stop();
-      _youtubeEndedHandled = false;
-      currentSong = playableSong;
-      duration = playableSong.duration == Duration.zero
-          ? duration
-          : playableSong.duration;
-
-      final existingController = youtubeController;
-
-      if (existingController == null) {
-        final controller = yt.YoutubePlayerController.fromVideoId(
-          videoId: videoId,
-          autoPlay: true,
-          startSeconds: startSeconds > 0 ? startSeconds : null,
-          params: _youtubeParams,
-        );
-        youtubeController = controller;
-        _attachYoutubeController(controller);
-      } else {
-        await existingController.loadVideoById(
-          videoId: videoId,
-          startSeconds: startSeconds > 0 ? startSeconds : null,
-        );
-        unawaited(existingController.playVideo());
-      }
-
-      position = startAt;
-      _playRequested = true;
-      isPlaying = true;
-      resolving = false;
-      unawaited(_saveLastSong(playableSong));
-    } catch (error) {
-      errorMessage = 'Khong phat duoc bai nay: $error';
-      _playRequested = false;
-      isPlaying = false;
-      resolving = false;
-    }
-
-    notifyListeners();
-  }
-
-  void _attachYoutubeController(yt.YoutubePlayerController controller) {
-    _youtubeStateSub?.cancel();
-    _youtubePositionSub?.cancel();
-
-    _youtubeStateSub = controller.stream.listen((value) {
-      if (currentSong?.isYoutube != true) {
-        return;
-      }
-
-      if (value.hasError) {
-        resolving = false;
-        isPlaying = false;
-        _playRequested = false;
-        errorMessage = 'YouTube khong cho phat bai nay (${value.error.code})';
-        notifyListeners();
-        return;
-      }
-
-      final metaDuration = value.metaData.duration;
-      if (metaDuration > Duration.zero) {
-        duration = metaDuration;
-      }
-
-      switch (value.playerState) {
-        case yt.PlayerState.playing:
-          resolving = false;
-          isPlaying = true;
-          _playRequested = true;
-          _youtubeEndedHandled = false;
-        case yt.PlayerState.buffering:
-          isPlaying = _playRequested;
-        case yt.PlayerState.paused:
-          resolving = false;
-          isPlaying = false;
-          _playRequested = false;
-        case yt.PlayerState.ended:
-          resolving = false;
-          isPlaying = false;
-          _playRequested = false;
-          if (!_youtubeEndedHandled && !_handlingCompletion && !_seeking) {
-            _youtubeEndedHandled = true;
-            unawaited(_handleSongCompleted());
-          }
-        case yt.PlayerState.cued:
-        case yt.PlayerState.unStarted:
-        case yt.PlayerState.unknown:
-          break;
-      }
-
-      notifyListeners();
-    });
-
-    _youtubePositionSub = controller.videoStateStream.listen((state) {
-      if (currentSong?.isYoutube != true || _seeking) {
-        return;
-      }
-
-      position = state.position;
-      notifyListeners();
-    });
   }
 
   Future<void> togglePlay() async {
@@ -387,40 +241,20 @@ class VibeController extends ChangeNotifier {
       return;
     }
 
-    if (song.isYoutube) {
-      final controller = youtubeController;
-
-      if (controller == null) {
-        await playSong(song, queue: activeQueue.isEmpty ? [song] : activeQueue);
-        return;
-      }
-
-      if (isPlaying || _playRequested) {
-        _playRequested = false;
-        isPlaying = false;
-        await controller.pauseVideo();
-      } else {
-        _playRequested = true;
-        isPlaying = true;
-        await controller.playVideo();
-      }
-
-      notifyListeners();
-      return;
-    }
-
-    if (song.hasStream) {
-      if (audio.isPlaying) {
-        _playRequested = false;
-        await audio.pause();
-        isPlaying = false;
-      } else {
+    if (audio.isPlaying || isPlaying) {
+      _playRequested = false;
+      await audio.pause();
+      isPlaying = false;
+    } else if (!song.hasStream) {
+      await playSong(song, queue: activeQueue.isEmpty ? [song] : activeQueue);
+    } else {
+      try {
         _playRequested = true;
         await audio.resume();
         isPlaying = true;
+      } catch (_) {
+        await playSong(song, queue: activeQueue.isEmpty ? [song] : activeQueue);
       }
-    } else {
-      await playSong(song, queue: activeQueue.isEmpty ? [song] : activeQueue);
     }
 
     notifyListeners();
@@ -461,47 +295,13 @@ class VibeController extends ChangeNotifier {
   Future<void> seek(Duration nextPosition) async {
     final targetPosition = _safeSeekPosition(nextPosition);
     final song = currentSong;
-    final isYoutube = song?.isYoutube == true;
-    final shouldResume = isYoutube
-        ? (_playRequested || isPlaying)
-        : (_playRequested || audio.isPlaying || isPlaying);
+    final shouldResume = _playRequested || audio.isPlaying || isPlaying;
 
     _seeking = true;
     errorMessage = '';
 
     try {
-      if (isYoutube && song != null) {
-        position = targetPosition;
-        notifyListeners();
-
-        final controller = youtubeController;
-
-        if (controller == null) {
-          final sourceSong =
-              activeQueue.isNotEmpty && currentIndex < activeQueue.length
-                  ? activeQueue[currentIndex]
-                  : song;
-          await _playYoutubeSong(sourceSong, startAt: targetPosition);
-          return;
-        }
-
-        await controller.seekTo(
-          seconds: targetPosition.inMilliseconds / 1000,
-          allowSeekAhead: true,
-        );
-
-        if (shouldResume) {
-          _playRequested = true;
-          isPlaying = true;
-          await controller.playVideo();
-        } else {
-          _playRequested = false;
-          isPlaying = false;
-          await controller.pauseVideo();
-        }
-      } else {
-        await audio.seek(targetPosition);
-      }
+      await audio.seek(targetPosition);
     } catch (error) {
       errorMessage = 'Khong tua duoc bai nay: $error';
       _playRequested = false;
@@ -512,7 +312,7 @@ class VibeController extends ChangeNotifier {
     }
     position = targetPosition;
 
-    if (shouldResume && song != null && !isYoutube && errorMessage.isEmpty) {
+    if (shouldResume && song != null && errorMessage.isEmpty) {
       _playRequested = true;
       await audio.resume();
       isPlaying = true;
@@ -529,7 +329,7 @@ class VibeController extends ChangeNotifier {
     ]) {
       await Future<void>.delayed(delay);
 
-      if (!_playRequested || currentSong == null || currentSong!.isYoutube) {
+      if (!_playRequested || currentSong == null) {
         return;
       }
 
@@ -561,22 +361,7 @@ class VibeController extends ChangeNotifier {
     return nextPosition;
   }
 
-  Future<void> _disposeYoutubeController() async {
-    final controller = youtubeController;
-    youtubeController = null;
-    _youtubeEndedHandled = false;
-    await _youtubeStateSub?.cancel();
-    await _youtubePositionSub?.cancel();
-    _youtubeStateSub = null;
-    _youtubePositionSub = null;
-
-    if (controller != null) {
-      await controller.close();
-    }
-  }
-
   Future<void> reset() async {
-    await _disposeYoutubeController();
     await audio.stop();
     currentSong = null;
     isPlaying = false;
@@ -598,7 +383,13 @@ class VibeController extends ChangeNotifier {
         return;
       }
 
-      currentSong = Song.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+      final restored = Song.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+      if (!_isSupportedSongSource(restored)) {
+        unawaited(_clearLastSong());
+        return;
+      }
+
+      currentSong = restored;
       duration =
           currentSong?.duration == Duration.zero ? null : currentSong?.duration;
       notifyListeners();
@@ -608,8 +399,7 @@ class VibeController extends ChangeNotifier {
   Future<void> _saveLastSong(Song song) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final cached =
-          song.copyWith(streamUrl: song.isYoutube ? '' : song.streamUrl);
+      final cached = song.copyWith(streamUrl: '');
       await prefs.setString(_lastSongKey, jsonEncode(cached.toJson()));
     } catch (_) {}
   }
@@ -621,15 +411,126 @@ class VibeController extends ChangeNotifier {
     } catch (_) {}
   }
 
+  Future<void> clearListeningHistory() async {
+    listeningHistory = [];
+    notifyListeners();
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_listeningHistoryKey);
+    } catch (_) {}
+  }
+
+  Future<void> clearSearchHistory() async {
+    searchHistory = [];
+    notifyListeners();
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_searchHistoryKey);
+    } catch (_) {}
+  }
+
+  Future<void> removeSearchHistory(String value) async {
+    final cleanValue = value.trim().toLowerCase();
+    searchHistory = searchHistory
+        .where((item) => item.trim().toLowerCase() != cleanValue)
+        .toList();
+    notifyListeners();
+    await _saveSearchHistory();
+  }
+
+  Future<void> _restoreHistories() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final rawSongs = prefs.getStringList(_listeningHistoryKey) ?? const [];
+      final rawSearches = prefs.getStringList(_searchHistoryKey) ?? const [];
+
+      listeningHistory = rawSongs
+          .map((raw) => jsonDecode(raw))
+          .whereType<Map<String, dynamic>>()
+          .map(Song.fromJson)
+          .where((song) =>
+              song.id.trim().isNotEmpty && _isSupportedSongSource(song))
+          .toList();
+      searchHistory = rawSearches
+          .map((item) => item.trim())
+          .where((item) => item.isNotEmpty)
+          .take(_maxSearchHistory)
+          .toList();
+      notifyListeners();
+    } catch (_) {}
+  }
+
+  Future<void> _addListeningHistory(Song song) async {
+    final cached = song.copyWith(streamUrl: '');
+    final cleanId = _historySongKey(cached);
+
+    listeningHistory = [
+      cached,
+      ...listeningHistory.where((item) => _historySongKey(item) != cleanId),
+    ].take(_maxListeningHistory).toList();
+    notifyListeners();
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList(
+        _listeningHistoryKey,
+        listeningHistory
+            .map((item) => jsonEncode(item.toJson()))
+            .toList(growable: false),
+      );
+    } catch (_) {}
+  }
+
+  Future<void> _addSearchHistory(String query) async {
+    final cleanQuery = query.trim();
+    if (cleanQuery.isEmpty) {
+      return;
+    }
+
+    final cleanLower = cleanQuery.toLowerCase();
+    searchHistory = [
+      cleanQuery,
+      ...searchHistory.where((item) => item.trim().toLowerCase() != cleanLower),
+    ].take(_maxSearchHistory).toList();
+    notifyListeners();
+
+    await _saveSearchHistory();
+  }
+
+  Future<void> _saveSearchHistory() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList(_searchHistoryKey, searchHistory);
+    } catch (_) {}
+  }
+
+  String _historySongKey(Song song) {
+    final sourceKey = '${song.sourceType}:${song.sourceId}'.trim();
+    if (song.sourceId.trim().isNotEmpty) {
+      return sourceKey;
+    }
+
+    if (song.databaseId.trim().isNotEmpty) {
+      return song.databaseId.trim();
+    }
+
+    return song.id.trim();
+  }
+
+  bool _isSupportedSongSource(Song song) {
+    final sourceType = song.sourceType.trim();
+    return sourceType.isEmpty ||
+        sourceType == 'youtube' ||
+        sourceType == 'upload';
+  }
+
   String formatDuration(Duration value) {
     final seconds = value.inSeconds;
     final minutes = seconds ~/ 60;
     final remain = seconds % 60;
     return '$minutes:${remain.toString().padLeft(2, '0')}';
-  }
-
-  bool _isYoutubeVideoId(String value) {
-    return RegExp(r'^[A-Za-z0-9_-]{11}$').hasMatch(value);
   }
 
   @override
@@ -638,9 +539,7 @@ class VibeController extends ChangeNotifier {
     _audioPositionSub?.cancel();
     _audioDurationSub?.cancel();
     _audioErrorSub?.cancel();
-    _youtubeStateSub?.cancel();
-    _youtubePositionSub?.cancel();
-    unawaited(youtubeController?.close());
+    _audioCommandSub?.cancel();
     audio.dispose();
     music.close();
     super.dispose();

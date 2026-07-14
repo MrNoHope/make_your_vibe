@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../../core/app_colors.dart';
-import '../../widgets/app_logo.dart';
 
 class SideRail extends StatelessWidget {
   final int currentIndex;
@@ -17,11 +16,10 @@ class SideRail extends StatelessWidget {
   Widget build(BuildContext context) {
     final items = [
       _RailItem(Icons.home_rounded, 'Music'),
-      _RailItem(Icons.graphic_eq_rounded, 'Sound'),
-      _RailItem(Icons.tune_rounded, 'Mixer'),
-      _RailItem(Icons.library_music_rounded, 'Library', pageIndex: 4),
-      _RailItem(Icons.settings_rounded, 'Settings', pageIndex: 5),
-      _RailItem(Icons.person_rounded, 'Profile', pageIndex: 6),
+      _RailItem(Icons.tune_rounded, 'Sound'),
+      _RailItem(Icons.library_music_rounded, 'Library', pageIndex: 3),
+      _RailItem(Icons.settings_rounded, 'Settings', pageIndex: 4),
+      _RailItem(Icons.person_rounded, 'Profile', pageIndex: 5),
     ];
 
     return Container(
@@ -29,9 +27,7 @@ class SideRail extends StatelessWidget {
       color: AppColors.background,
       child: Column(
         children: [
-          const SizedBox(height: 12),
-          const AppLogo(size: 26),
-          const SizedBox(height: 22),
+          const SizedBox(height: 20),
           ...List.generate(items.length, (i) {
             final item = items[i];
             final pageIndex = item.pageIndex ?? i;

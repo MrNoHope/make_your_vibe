@@ -54,8 +54,8 @@ class LibraryGateway {
         _firestoreOverride = firestore,
         _supabaseOverride = supabase;
 
-  static const _youtubeAudioPrefix = 'youtube:';
-  static const _youtubeDocPrefix = 'youtube_';
+  static const _onlineAudioPrefix = 'online:';
+  static const _onlineDocPrefix = 'online_';
   static const _sourceYoutube = 'youtube';
   static const _sourceUpload = 'upload';
   static const _serverGet = GetOptions(source: Source.server);
@@ -76,6 +76,17 @@ class LibraryGateway {
     final snapshot = await _firebaseRequest(
       _albumsRef(user.uid)
           .orderBy('createdAt', descending: true)
+          .get(_serverGet),
+    );
+
+    return snapshot.docs.map(_playlistFromDoc).toList();
+  }
+
+  Future<List<Playlist>> getImportedSharedAlbums() async {
+    final user = _requireUser();
+    final snapshot = await _firebaseRequest(
+      _userSharedAlbumsRef(user.uid)
+          .orderBy('addedAt', descending: true)
           .get(_serverGet),
     );
 
@@ -137,6 +148,80 @@ class LibraryGateway {
     );
 
     return snapshot.docs.map(_songFromDoc).toList();
+  }
+
+  Future<String> shareAlbum(String albumId) async {
+    final user = _requireUser();
+    final album = await getAlbum(albumId);
+
+    if (album.songs.isEmpty) {
+      throw const LibraryGatewayException('Album needs at least one song.');
+    }
+
+    final existing = await _firebaseRequest(
+      _sharedAlbumsRef()
+          .where('ownerId', isEqualTo: user.uid)
+          .where('albumId', isEqualTo: album.id)
+          .limit(1)
+          .get(_serverGet),
+    );
+    final shareRef = existing.docs.isEmpty
+        ? _sharedAlbumsRef().doc()
+        : existing.docs.first.reference;
+
+    await _firebaseRequest(
+      shareRef.set({
+        'ownerId': user.uid,
+        'ownerName': user.displayName ?? user.email ?? 'Make Your Vibe',
+        'albumId': album.id,
+        'title': album.title,
+        'subtitle': album.subtitle,
+        'coverUrl': album.coverUrl,
+        'songs': album.songs.map(_songShareData).toList(growable: false),
+        'updatedAt': FieldValue.serverTimestamp(),
+        if (existing.docs.isEmpty) 'createdAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true)),
+    );
+
+    return shareRef.id;
+  }
+
+  Future<Playlist> importSharedAlbum(String shareCode) async {
+    final user = _requireUser();
+    final sharedAlbum = await getSharedAlbum(shareCode);
+    final docRef = _userSharedAlbumsRef(user.uid).doc(sharedAlbum.id);
+
+    await _firebaseRequest(
+      docRef.set({
+        'title': sharedAlbum.title,
+        'subtitle': sharedAlbum.subtitle,
+        'coverUrl': sharedAlbum.coverUrl,
+        'shareId': sharedAlbum.id,
+        'addedAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true)),
+    );
+
+    return sharedAlbum;
+  }
+
+  Future<Playlist> getSharedAlbum(String shareCode) async {
+    final cleanCode = shareCode.trim();
+
+    if (cleanCode.isEmpty) {
+      throw const LibraryGatewayException('Share code is required.');
+    }
+
+    _requireUser();
+    final doc = await _firebaseRequest(
+      _sharedAlbumsRef().doc(cleanCode).get(_serverGet),
+    );
+
+    if (!doc.exists) {
+      throw const LibraryGatewayException('Shared album not found.');
+    }
+
+    return _sharedPlaylistFromDoc(doc);
   }
 
   Future<Playlist> createAlbum({
@@ -271,13 +356,14 @@ class LibraryGateway {
   }) async {
     final user = _requireUser();
     final cleanAlbumId = albumId.trim();
-    final sourceId = _youtubeSourceId(song);
+    final sourceType = _onlineSourceType(song);
+    final sourceId = _onlineSourceId(song);
 
     if (cleanAlbumId.isEmpty) {
       throw const LibraryGatewayException('Album is required.');
     }
 
-    final songRef = _songsRef(user.uid).doc(_youtubeDocId(sourceId));
+    final songRef = _songsRef(user.uid).doc(_onlineDocId(sourceType, sourceId));
     final existing = await _firebaseRequest(songRef.get(_serverGet));
 
     if (!existing.exists) {
@@ -290,10 +376,10 @@ class LibraryGateway {
           'album': albumTitle.trim(),
           'durationSeconds': song.duration.inSeconds,
           'streamUrl': '',
-          'audioPath': '$_youtubeAudioPrefix$sourceId',
+          'audioPath': '$_onlineAudioPrefix$sourceType:$sourceId',
           'coverUrl': song.coverUrl.trim(),
           'coverPath': '',
-          'sourceType': _sourceYoutube,
+          'sourceType': sourceType,
           'sourceId': sourceId,
           'createdAt': FieldValue.serverTimestamp(),
           'updatedAt': FieldValue.serverTimestamp(),
@@ -330,6 +416,19 @@ class LibraryGateway {
 
   CollectionReference<Map<String, dynamic>> _songsRef(String ownerId) {
     return _firestore.collection('users').doc(ownerId).collection('songs');
+  }
+
+  CollectionReference<Map<String, dynamic>> _userSharedAlbumsRef(
+    String ownerId,
+  ) {
+    return _firestore
+        .collection('users')
+        .doc(ownerId)
+        .collection('sharedAlbums');
+  }
+
+  CollectionReference<Map<String, dynamic>> _sharedAlbumsRef() {
+    return _firestore.collection('sharedAlbums');
   }
 
   CollectionReference<Map<String, dynamic>> _albumItemsRef(
@@ -400,25 +499,24 @@ class LibraryGateway {
       return cleanSongId;
     }
 
-    if (_isYoutubeVideoId(cleanSongId)) {
-      final youtubeDoc = await _firebaseRequest(
-        _songsRef(ownerId).doc(_youtubeDocId(cleanSongId)).get(_serverGet),
-      );
-      if (youtubeDoc.exists) {
-        return youtubeDoc.id;
-      }
+    final youtubeDoc = await _firebaseRequest(
+      _songsRef(ownerId).doc(_onlineDocId(_sourceYoutube, cleanSongId)).get(
+            _serverGet,
+          ),
+    );
+    if (youtubeDoc.exists) {
+      return youtubeDoc.id;
+    }
 
-      final byYoutubeId = await _firebaseRequest(
-        _songsRef(ownerId)
-            .where('sourceType', isEqualTo: _sourceYoutube)
-            .where('sourceId', isEqualTo: cleanSongId)
-            .limit(1)
-            .get(_serverGet),
-      );
+    final bySourceId = await _firebaseRequest(
+      _songsRef(ownerId)
+          .where('sourceId', isEqualTo: cleanSongId)
+          .limit(1)
+          .get(_serverGet),
+    );
 
-      if (byYoutubeId.docs.isNotEmpty) {
-        return byYoutubeId.docs.first.id;
-      }
+    if (bySourceId.docs.isNotEmpty) {
+      return bySourceId.docs.first.id;
     }
 
     throw const LibraryGatewayException(
@@ -500,31 +598,79 @@ class LibraryGateway {
     );
   }
 
+  Playlist _sharedPlaylistFromDoc(
+    DocumentSnapshot<Map<String, dynamic>> doc,
+  ) {
+    final data = doc.data() ?? const <String, dynamic>{};
+    final rawSongs = data['songs'];
+    final ownerName = _string(data['ownerName']).trim();
+    final subtitle = _string(data['subtitle']).trim();
+    final songs = rawSongs is List
+        ? rawSongs
+            .whereType<Map>()
+            .map((raw) => Song.fromJson(raw.cast<String, dynamic>()))
+            .toList(growable: false)
+        : const <Song>[];
+
+    return Playlist(
+      id: doc.id,
+      title: _string(data['title']),
+      subtitle: ownerName.isEmpty
+          ? subtitle
+          : subtitle.isEmpty
+              ? 'Chia se boi $ownerName'
+              : '$subtitle • $ownerName',
+      coverUrl: _string(data['coverUrl']),
+      songs: songs,
+    );
+  }
+
   Song _songFromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data() ?? const <String, dynamic>{};
     final sourceType = _string(data['sourceType']);
     final sourceId = _string(data['sourceId']);
-    final isYoutube = sourceType == _sourceYoutube;
+    final isOnline = sourceType.isNotEmpty && sourceType != _sourceUpload;
 
     return Song(
-      id: isYoutube ? sourceId : doc.id,
+      id: isOnline && sourceId.isNotEmpty ? sourceId : doc.id,
       title: _string(data['title']),
       artist: _string(data['artist']),
       album: _string(data['album']),
       coverUrl: _string(data['coverUrl']),
       duration: Duration(seconds: _int(data['durationSeconds'])),
-      streamUrl: isYoutube ? '' : _string(data['streamUrl']),
+      streamUrl: isOnline ? '' : _string(data['streamUrl']),
       databaseId: doc.id,
       sourceType: sourceType,
       sourceId: sourceId,
     );
   }
 
-  String _youtubeSourceId(Song song) {
-    final sourceId = song.youtubeVideoId.trim();
+  Map<String, dynamic> _songShareData(Song song) {
+    return {
+      'id': song.id,
+      'title': song.title,
+      'artist': song.artist,
+      'album': song.album,
+      'coverUrl': song.coverUrl,
+      'durationSeconds': song.duration.inSeconds,
+      'streamUrl': song.sourceType == _sourceUpload ? song.streamUrl : '',
+      'sourceType': song.sourceType,
+      'sourceId': song.sourceId,
+    };
+  }
 
-    if (!_isYoutubeVideoId(sourceId)) {
-      throw LibraryGatewayException('Video YouTube khong hop le: $sourceId');
+  String _onlineSourceType(Song song) {
+    final sourceType = song.sourceType.trim();
+    return sourceType.isEmpty || sourceType == _sourceUpload
+        ? _sourceYoutube
+        : sourceType;
+  }
+
+  String _onlineSourceId(Song song) {
+    final sourceId = song.onlineSourceId.trim();
+
+    if (sourceId.isEmpty) {
+      throw const LibraryGatewayException('Online song id is required.');
     }
 
     return sourceId;
@@ -551,11 +697,14 @@ class LibraryGateway {
     return 0;
   }
 
-  bool _isYoutubeVideoId(String value) {
-    return RegExp(r'^[A-Za-z0-9_-]{11}$').hasMatch(value.trim());
+  String _safeDocSegment(String value) {
+    final safe = value.trim().replaceAll(RegExp(r'[^A-Za-z0-9_-]+'), '_');
+    return safe.isEmpty ? 'song' : safe;
   }
 
-  String _youtubeDocId(String videoId) => '$_youtubeDocPrefix$videoId';
+  String _onlineDocId(String sourceType, String sourceId) {
+    return '$_onlineDocPrefix${_safeDocSegment(sourceType)}_${_safeDocSegment(sourceId)}';
+  }
 }
 
 class _UploadedFile {

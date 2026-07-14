@@ -1,8 +1,8 @@
-import 'dart:typed_data';
-
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:path/path.dart' as file_path;
+import 'package:share_plus/share_plus.dart';
 
 import '../../controllers/vibe_controller.dart';
 import '../../core/app_colors.dart';
@@ -33,6 +33,7 @@ class _LibraryPageState extends State<LibraryPage> {
   bool configured = libraryGateway.isConfigured;
   String errorMessage = '';
   List<Playlist> albums = [];
+  List<Playlist> sharedAlbums = [];
   List<Song> songs = [];
 
   @override
@@ -62,11 +63,13 @@ class _LibraryPageState extends State<LibraryPage> {
 
     try {
       final loadedAlbums = await libraryGateway.getAlbums();
+      final loadedSharedAlbums = await libraryGateway.getImportedSharedAlbums();
       final loadedSongs = await libraryGateway.getSongs();
 
       if (!mounted) return;
       setState(() {
         albums = loadedAlbums;
+        sharedAlbums = loadedSharedAlbums;
         songs = loadedSongs;
         loading = false;
       });
@@ -89,7 +92,7 @@ class _LibraryPageState extends State<LibraryPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               TopBar(
-                title: 'Thu vien ca nhan',
+                title: 'Thư viện cá nhân',
                 action: IconButton(
                   tooltip: 'Tim kiem',
                   onPressed: widget.onOpenSearch,
@@ -100,8 +103,8 @@ class _LibraryPageState extends State<LibraryPage> {
               if (!configured) ...[
                 const BackendNotice(
                   icon: Icons.cloud_off_rounded,
-                  title: 'Chua cau hinh Firebase',
-                  message: 'Them google-services.json va Firebase options.',
+                  title: 'Chưa cấu hình Firebase',
+                  message: 'Thêm google-services.json và Firebase options.',
                 ),
               ] else ...[
                 Wrap(
@@ -110,13 +113,18 @@ class _LibraryPageState extends State<LibraryPage> {
                   children: [
                     LibraryActionButton(
                       icon: Icons.add_rounded,
-                      label: 'Tao album',
+                      label: 'Tạo album',
                       onTap: showCreateAlbumDialog,
                     ),
                     LibraryActionButton(
                       icon: Icons.upload_file_rounded,
                       label: 'Upload',
                       onTap: showUploadSongDialog,
+                    ),
+                    LibraryActionButton(
+                      icon: Icons.ios_share_rounded,
+                      label: 'Nhập share',
+                      onTap: showImportSharedAlbumDialog,
                     ),
                   ],
                 ),
@@ -138,34 +146,69 @@ class _LibraryPageState extends State<LibraryPage> {
                     const SizedBox(height: 16),
                   ],
                   SectionHeader(
-                    title: 'Album ca nhan',
-                    action: 'Tao',
+                    title: 'Album cá nhân',
+                    action: 'Tạo',
                     onTap: showCreateAlbumDialog,
                   ),
                   const SizedBox(height: 12),
                   if (albums.isEmpty)
                     const BackendNotice(
                       icon: Icons.album_rounded,
-                      title: 'Chua co album',
+                      title: 'Chưa có album',
                       message:
-                          'Tao album ca nhan dau tien de gom nhac cua ban.',
+                          'Tạo album cá nhân đầu tiên để gom nhạc của bạn.',
                     )
                   else
-                    Wrap(
-                      spacing: 12,
-                      runSpacing: 12,
-                      children: albums
-                          .map(
-                            (album) => AlbumCard(
-                              album: album,
-                              onTap: () => openAlbum(album),
-                            ),
-                          )
-                          .toList(),
+                    SizedBox(
+                      height: 174,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        physics: const BouncingScrollPhysics(),
+                        itemCount: albums.length,
+                        separatorBuilder: (_, __) => const SizedBox(width: 14),
+                        itemBuilder: (context, index) {
+                          final album = albums[index];
+                          return AlbumCard(
+                            album: album,
+                            onTap: () => openAlbum(album),
+                          );
+                        },
+                      ),
                     ),
                   const SizedBox(height: 22),
                   SectionHeader(
-                    title: 'Bai hat',
+                    title: 'Album được chia sẻ',
+                    action: 'Nhập',
+                    onTap: showImportSharedAlbumDialog,
+                  ),
+                  const SizedBox(height: 12),
+                  if (sharedAlbums.isEmpty)
+                    const BackendNotice(
+                      icon: Icons.ios_share_rounded,
+                      title: 'Chưa có album share',
+                      message:
+                          'Nhập mã share từ bạn bè để nghe album trong app.',
+                    )
+                  else
+                    SizedBox(
+                      height: 174,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        physics: const BouncingScrollPhysics(),
+                        itemCount: sharedAlbums.length,
+                        separatorBuilder: (_, __) => const SizedBox(width: 14),
+                        itemBuilder: (context, index) {
+                          final album = sharedAlbums[index];
+                          return AlbumCard(
+                            album: album,
+                            onTap: () => openAlbum(album, shared: true),
+                          );
+                        },
+                      ),
+                    ),
+                  const SizedBox(height: 22),
+                  SectionHeader(
+                    title: 'Bài hát',
                     action: 'Upload',
                     onTap: showUploadSongDialog,
                   ),
@@ -173,7 +216,7 @@ class _LibraryPageState extends State<LibraryPage> {
                   if (songs.isEmpty)
                     const BackendNotice(
                       icon: Icons.music_note_rounded,
-                      title: 'Chua co bai hat',
+                      title: 'Chưa có bài hát',
                       message: 'Upload file audio de luu vao Supabase Storage.',
                     )
                   else
@@ -216,7 +259,7 @@ class _LibraryPageState extends State<LibraryPage> {
             builder: (context, setDialogState) {
               return AlertDialog(
                 backgroundColor: AppColors.card,
-                title: const Text('Tao album ca nhan'),
+                title: const Text('Tạo album cá nhân'),
                 content: SingleChildScrollView(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -224,14 +267,14 @@ class _LibraryPageState extends State<LibraryPage> {
                       TextField(
                         controller: titleController,
                         decoration: const InputDecoration(
-                          labelText: 'Ten album ca nhan',
+                          labelText: 'Tên album cá nhân',
                         ),
                       ),
                       const SizedBox(height: 10),
                       TextField(
                         controller: subtitleController,
                         decoration: const InputDecoration(
-                          labelText: 'Ghi chu',
+                          labelText: 'Ghi chú',
                         ),
                       ),
                       const SizedBox(height: 14),
@@ -254,14 +297,14 @@ class _LibraryPageState extends State<LibraryPage> {
                   TextButton(
                     onPressed:
                         busy ? null : () => Navigator.of(dialogContext).pop(),
-                    child: const Text('Huy'),
+                    child: const Text('Hủy'),
                   ),
                   FilledButton.icon(
                     onPressed: busy
                         ? null
                         : () async {
                             if (titleController.text.trim().isEmpty) {
-                              showSnack('Nhap ten album.');
+                              showSnack('Nhập tên album.');
                               return;
                             }
 
@@ -288,7 +331,7 @@ class _LibraryPageState extends State<LibraryPage> {
                             }
                           },
                     icon: const Icon(Icons.check_rounded),
-                    label: const Text('Tao'),
+                    label: const Text('Tạo'),
                   ),
                 ],
               );
@@ -299,7 +342,7 @@ class _LibraryPageState extends State<LibraryPage> {
 
       if (created == true) {
         await loadLibrary();
-        showSnack('Da tao album.');
+        showSnack('Đã tạo album.');
       }
     } finally {
       titleController.dispose();
@@ -323,7 +366,7 @@ class _LibraryPageState extends State<LibraryPage> {
             builder: (context, setDialogState) {
               return AlertDialog(
                 backgroundColor: AppColors.card,
-                title: const Text('Upload bai hat'),
+                title: const Text('Upload bài hát'),
                 content: SingleChildScrollView(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -351,22 +394,22 @@ class _LibraryPageState extends State<LibraryPage> {
                       TextField(
                         controller: titleController,
                         decoration: const InputDecoration(
-                          labelText: 'Ten bai hat',
+                          labelText: 'Tên bài hát',
                         ),
                       ),
                       const SizedBox(height: 10),
                       TextField(
                         controller: artistController,
                         decoration: const InputDecoration(
-                          labelText: 'Nghe si',
+                          labelText: 'Nghệ sĩ',
                         ),
                       ),
                       const SizedBox(height: 12),
                       const BackendNotice(
                         icon: Icons.info_outline_rounded,
-                        title: 'File upload luu rieng',
+                        title: 'File upload lưu riêng',
                         message:
-                            'Album ca nhan chi them nhac YouTube tu trang Tim kiem hoac Trang chu.',
+                            'Album cá nhân có thể thêm nhạc YouTube từ trang Tìm kiếm hoặc Trang chủ.',
                       ),
                       const SizedBox(height: 14),
                       FilePickButton(
@@ -389,18 +432,18 @@ class _LibraryPageState extends State<LibraryPage> {
                   TextButton(
                     onPressed:
                         busy ? null : () => Navigator.of(dialogContext).pop(),
-                    child: const Text('Huy'),
+                    child: const Text('Hủy'),
                   ),
                   FilledButton.icon(
                     onPressed: busy
                         ? null
                         : () async {
                             if (audio == null) {
-                              showSnack('Chon file audio.');
+                              showSnack('Chọn file audio.');
                               return;
                             }
                             if (titleController.text.trim().isEmpty) {
-                              showSnack('Nhap ten bai hat.');
+                              showSnack('Nhập tên bài hát.');
                               return;
                             }
 
@@ -442,7 +485,7 @@ class _LibraryPageState extends State<LibraryPage> {
 
       if (uploaded == true) {
         await loadLibrary();
-        showSnack('Da upload bai hat.');
+        showSnack('Đã upload bài hát.');
       }
     } finally {
       titleController.dispose();
@@ -450,12 +493,86 @@ class _LibraryPageState extends State<LibraryPage> {
     }
   }
 
-  Future<void> showAddLibrarySongToAlbumDialog(Song song) async {
-    if (!song.isYoutube) {
-      showSnack('Album chi them nhac YouTube.');
-      return;
-    }
+  Future<void> showImportSharedAlbumDialog() async {
+    final codeController = TextEditingController();
 
+    try {
+      final imported = await showDialog<Playlist>(
+        context: context,
+        builder: (dialogContext) {
+          var busy = false;
+
+          return StatefulBuilder(
+            builder: (context, setDialogState) {
+              return AlertDialog(
+                backgroundColor: AppColors.card,
+                title: const Text('Nhập album share'),
+                content: TextField(
+                  controller: codeController,
+                  textCapitalization: TextCapitalization.characters,
+                  decoration: const InputDecoration(
+                    labelText: 'Mã share',
+                    hintText: 'Dán mã album bạn bè gửi',
+                  ),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed:
+                        busy ? null : () => Navigator.of(dialogContext).pop(),
+                    child: const Text('Hủy'),
+                  ),
+                  FilledButton.icon(
+                    onPressed: busy
+                        ? null
+                        : () async {
+                            if (codeController.text.trim().isEmpty) {
+                              showSnack('Nhập mã share.');
+                              return;
+                            }
+
+                            setDialogState(() {
+                              busy = true;
+                            });
+
+                            try {
+                              final album = await libraryGateway
+                                  .importSharedAlbum(codeController.text);
+
+                              if (dialogContext.mounted) {
+                                Navigator.of(dialogContext).pop(album);
+                              }
+                            } catch (error) {
+                              setDialogState(() {
+                                busy = false;
+                              });
+                              showSnack('$error');
+                            }
+                          },
+                    icon: busy
+                        ? const SizedBox.square(
+                            dimension: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.download_rounded),
+                    label: const Text('Thêm'),
+                  ),
+                ],
+              );
+            },
+          );
+        },
+      );
+
+      if (imported != null) {
+        await loadLibrary();
+        showSnack('Đã thêm album ${imported.title}.');
+      }
+    } finally {
+      codeController.dispose();
+    }
+  }
+
+  Future<void> showAddLibrarySongToAlbumDialog(Song song) async {
     final titleController = TextEditingController();
 
     try {
@@ -472,7 +589,7 @@ class _LibraryPageState extends State<LibraryPage> {
 
               return AlertDialog(
                 backgroundColor: AppColors.card,
-                title: const Text('Them vao album ca nhan'),
+                title: const Text('Thêm vào album cá nhân'),
                 content: SingleChildScrollView(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -489,7 +606,7 @@ class _LibraryPageState extends State<LibraryPage> {
                         DropdownButtonFormField<String>(
                           initialValue: createNew ? '__new__' : selectedAlbumId,
                           decoration: const InputDecoration(
-                            labelText: 'Album ca nhan',
+                            labelText: 'Album cá nhân',
                           ),
                           items: [
                             ...albums.map(
@@ -500,7 +617,7 @@ class _LibraryPageState extends State<LibraryPage> {
                             ),
                             const DropdownMenuItem(
                               value: '__new__',
-                              child: Text('Tao album moi'),
+                              child: Text('Tạo album mới'),
                             ),
                           ],
                           onChanged: busy
@@ -519,7 +636,7 @@ class _LibraryPageState extends State<LibraryPage> {
                         TextField(
                           controller: titleController,
                           decoration: const InputDecoration(
-                            labelText: 'Ten album ca nhan moi',
+                            labelText: 'Tên album cá nhân mới',
                           ),
                         ),
                     ],
@@ -529,7 +646,7 @@ class _LibraryPageState extends State<LibraryPage> {
                   TextButton(
                     onPressed:
                         busy ? null : () => Navigator.of(dialogContext).pop(),
-                    child: const Text('Huy'),
+                    child: const Text('Hủy'),
                   ),
                   FilledButton.icon(
                     onPressed: busy
@@ -537,7 +654,7 @@ class _LibraryPageState extends State<LibraryPage> {
                         : () async {
                             if (createNew &&
                                 titleController.text.trim().isEmpty) {
-                              showSnack('Nhap ten album.');
+                              showSnack('Nhập tên album.');
                               return;
                             }
 
@@ -554,7 +671,7 @@ class _LibraryPageState extends State<LibraryPage> {
 
                               if (targetAlbum == null) {
                                 throw const LibraryGatewayException(
-                                  'Chon album.',
+                                  'Chọn album.',
                                 );
                               }
 
@@ -565,7 +682,7 @@ class _LibraryPageState extends State<LibraryPage> {
 
                               if (dialogContext.mounted) {
                                 Navigator.of(dialogContext).pop(
-                                  'Da them vao ${targetAlbum.title}.',
+                                  'Đã thêm vào ${targetAlbum.title}.',
                                 );
                               }
                             } catch (error) {
@@ -576,7 +693,7 @@ class _LibraryPageState extends State<LibraryPage> {
                             }
                           },
                     icon: const Icon(Icons.playlist_add_rounded),
-                    label: const Text('Them'),
+                    label: const Text('Thêm'),
                   ),
                 ],
               );
@@ -594,7 +711,66 @@ class _LibraryPageState extends State<LibraryPage> {
     }
   }
 
-  Future<void> openAlbum(Playlist album) async {
+  Future<void> showShareAlbumDialog(Playlist album) async {
+    try {
+      showSnack('Đang tạo mã share...');
+      final code = await libraryGateway.shareAlbum(album.id);
+      await Clipboard.setData(ClipboardData(text: code));
+
+      if (!mounted) {
+        return;
+      }
+
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) {
+          return AlertDialog(
+            backgroundColor: AppColors.card,
+            title: const Text('Mã share album'),
+            content: SelectableText(
+              code,
+              style: const TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: const Text('Đóng'),
+              ),
+              FilledButton.icon(
+                onPressed: () async {
+                  await Clipboard.setData(ClipboardData(text: code));
+                  showSnack('Đã copy mã share.');
+                },
+                icon: const Icon(Icons.copy_rounded),
+                label: const Text('Copy'),
+              ),
+              FilledButton.icon(
+                onPressed: () async {
+                  final message = 'Nghe album "${album.title}" trên '
+                      'Make Your Vibe.\nMã share: $code';
+                  await SharePlus.instance.share(
+                    ShareParams(
+                      text: message,
+                      subject: 'Make Your Vibe - ${album.title}',
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.send_rounded),
+                label: const Text('Gửi'),
+              ),
+            ],
+          );
+        },
+      );
+    } catch (error) {
+      showSnack('$error');
+    }
+  }
+
+  Future<void> openAlbum(Playlist album, {bool shared = false}) async {
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: AppColors.card,
@@ -609,7 +785,9 @@ class _LibraryPageState extends State<LibraryPage> {
 
         return SafeArea(
           child: FutureBuilder<Playlist>(
-            future: libraryGateway.getAlbum(album.id),
+            future: shared
+                ? libraryGateway.getSharedAlbum(album.id)
+                : libraryGateway.getAlbum(album.id),
             builder: (context, snapshot) {
               final loadedAlbum = snapshot.data ?? album;
 
@@ -632,6 +810,12 @@ class _LibraryPageState extends State<LibraryPage> {
                             ),
                           ),
                         ),
+                        if (!shared)
+                          IconButton(
+                            tooltip: 'Chia sẻ album',
+                            onPressed: () => showShareAlbumDialog(album),
+                            icon: const Icon(Icons.ios_share_rounded),
+                          ),
                         IconButton(
                           onPressed: () => Navigator.of(sheetContext).pop(),
                           icon: const Icon(Icons.close_rounded),
@@ -657,7 +841,7 @@ class _LibraryPageState extends State<LibraryPage> {
                         icon: Icons.music_note_rounded,
                         title: 'Album trong',
                         message:
-                            'Tim bai hat roi bam nut them vao album ca nhan.',
+                            'Tìm bài hát rồi bấm nút thêm vào album cá nhân.',
                       )
                     else
                       Flexible(
@@ -823,7 +1007,7 @@ class AlbumCoverPicker extends StatelessWidget {
         const SizedBox(height: 10),
         FilePickButton(
           icon: Icons.image_rounded,
-          label: selectedCover?.name ?? 'Chon anh bia album',
+          label: selectedCover?.name ?? 'Chọn ảnh bìa album',
           onTap: onTap,
         ),
       ],
@@ -845,24 +1029,39 @@ class AlbumCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(18),
-      child: Container(
-        width: 138,
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: AppColors.card2,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: AppColors.line),
-        ),
+      borderRadius: BorderRadius.circular(8),
+      child: SizedBox(
+        width: 132,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            CoverImage(
-              url: album.coverUrl,
-              size: 118,
-              radius: 14,
+            SizedBox.square(
+              dimension: 132,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  CoverImage(
+                    url: album.coverUrl,
+                    size: double.infinity,
+                    radius: 8,
+                  ),
+                  Positioned(
+                    right: 8,
+                    bottom: 8,
+                    child: CircleAvatar(
+                      radius: 17,
+                      backgroundColor: AppColors.green.withValues(alpha: 0.92),
+                      child: const Icon(
+                        Icons.play_arrow_rounded,
+                        color: Colors.black,
+                        size: 22,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 9),
             Text(
               album.title,
               maxLines: 1,

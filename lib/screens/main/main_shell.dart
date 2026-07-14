@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:youtube_player_flutter/youtube_player_flutter.dart' as yt;
 import '../../controllers/vibe_controller.dart';
 import '../../core/app_colors.dart';
 import '../../core/app_language.dart';
@@ -79,11 +78,10 @@ class _MainShellState extends State<MainShell> {
         onOpenPlayer: openPlayer,
         onOpenSearch: () {
           setState(() {
-            index = 3;
+            index = 2;
           });
         },
       ),
-      SoundEffectsPage(onOpenMixer: openAmbientMixer),
       SoundEffectsPage(onOpenMixer: openAmbientMixer),
       SearchPage(
         controller: widget.controller,
@@ -94,7 +92,7 @@ class _MainShellState extends State<MainShell> {
         onOpenPlayer: openPlayer,
         onOpenSearch: () {
           setState(() {
-            index = 3;
+            index = 2;
           });
         },
       ),
@@ -111,73 +109,35 @@ class _MainShellState extends State<MainShell> {
     return Scaffold(
       body: SafeArea(
         bottom: false,
-        child: Stack(
+        child: Row(
           children: [
-            Row(
-              children: [
-                SideRail(
-                  currentIndex: index,
-                  onChanged: (value) {
-                    setState(() {
-                      index = value;
-                    });
-                  },
-                ),
-                Expanded(
-                  child: Column(
-                    children: [
-                      Expanded(
-                        child: pages[index],
-                      ),
-                      MiniPlayerBar(
-                        controller: widget.controller,
-                        onTap: openPlayer,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+            SideRail(
+              currentIndex: index,
+              onChanged: (value) {
+                if (value < 0) {
+                  openAmbientMixer();
+                  return;
+                }
+
+                setState(() {
+                  index = value;
+                });
+              },
             ),
-            Positioned(
-              left: -240,
-              top: -160,
-              width: 160,
-              height: 90,
-              child: AnimatedBuilder(
-                animation: widget.controller,
-                builder: (context, _) {
-                  final youtubeController = widget.controller.youtubeController;
-
-                  if (youtubeController == null) {
-                    return const SizedBox.shrink();
-                  }
-
-                  return _HiddenYoutubePlayer(controller: youtubeController);
-                },
+            Expanded(
+              child: Column(
+                children: [
+                  Expanded(
+                    child: pages[index],
+                  ),
+                  MiniPlayerBar(
+                    controller: widget.controller,
+                    onTap: openPlayer,
+                  ),
+                ],
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _HiddenYoutubePlayer extends StatelessWidget {
-  final yt.YoutubePlayerController controller;
-
-  const _HiddenYoutubePlayer({required this.controller});
-
-  @override
-  Widget build(BuildContext context) {
-    return IgnorePointer(
-      child: Opacity(
-        opacity: 0.01,
-        child: yt.YoutubePlayer(
-          controller: controller,
-          autoFullScreen: false,
-          enableFullScreenOnVerticalDrag: false,
-          keepAlive: true,
         ),
       ),
     );

@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
-import 'package:just_audio_background/just_audio_background.dart';
 
 import 'app.dart';
 import 'firebase_options.dart';
+import 'services/audio_gateway.dart';
+import 'services/background_audio_gateway.dart';
 import 'services/supabase_gateway.dart';
 
 Future<void> main() async {
@@ -14,12 +15,9 @@ Future<void> main() async {
   await _tryInitializeSupabase();
 
   if (!kIsWeb) {
-    await JustAudioBackground.init(
-      androidNotificationChannelId: 'com.make_your_vibe.player',
-      androidNotificationChannelName: 'Make Your Vibe Player',
-      androidNotificationOngoing: true,
-    );
+    await audioGateway.initialize();
   }
+  await backgroundAudioGateway.initialize();
 
   runApp(const MakeYourVibeApp());
 }

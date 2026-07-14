@@ -25,17 +25,21 @@ class Song {
 
   bool get hasStream => streamUrl.trim().isNotEmpty;
 
-  bool get isYoutube =>
-      sourceType == 'youtube' || (!hasStream && _isVideoId(id));
+  bool get isYoutube => sourceType == 'youtube';
+
+  bool get isOnline =>
+      sourceType.trim().isNotEmpty &&
+      sourceId.trim().isNotEmpty &&
+      sourceType != 'upload';
 
   String get storedId {
     final cleanDatabaseId = databaseId.trim();
     return cleanDatabaseId.isEmpty ? id.trim() : cleanDatabaseId;
   }
 
-  String get youtubeVideoId {
+  String get onlineSourceId {
     final cleanSourceId = sourceId.trim();
-    if (sourceType == 'youtube' && cleanSourceId.isNotEmpty) {
+    if (cleanSourceId.isNotEmpty) {
       return cleanSourceId;
     }
     return id.trim();
@@ -117,9 +121,5 @@ class Song {
     if (value is double) return value.toInt();
     if (value is String) return int.tryParse(value) ?? 0;
     return 0;
-  }
-
-  static bool _isVideoId(String value) {
-    return RegExp(r'^[A-Za-z0-9_-]{11}$').hasMatch(value.trim());
   }
 }

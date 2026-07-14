@@ -30,6 +30,36 @@ class _HomePageState extends State<HomePage> {
   final Map<String, List<Song>> _albumCache = {};
   String _loadingAlbumId = '';
 
+  List<_AlbumShelfData> get _albumShelves => [
+        _AlbumShelfData(
+          title: 'Noi bat',
+          albums: _albumsByIds([
+            'thien-ha',
+            'top-100',
+            'rap-viet',
+            'son-tung',
+          ]),
+        ),
+        _AlbumShelfData(
+          title: 'Dòng nhạc cho bạn',
+          albums: _albumsByIds([
+            'chill-vpop',
+            'ballad',
+            'remix',
+            'study',
+          ]),
+        ),
+        _AlbumShelfData(
+          title: 'Nghe theo vibe',
+          albums: _albumsByIds([
+            'study',
+            'chill-vpop',
+            'ballad',
+            'rap-viet',
+          ]),
+        ),
+      ];
+
   @override
   void initState() {
     super.initState();
@@ -52,26 +82,41 @@ class _HomePageState extends State<HomePage> {
               TopBar(
                 title: 'Make Your Vibe',
                 action: IconButton(
-                  tooltip: 'Tim kiem',
+                  tooltip: 'Tìm kiếm',
                   onPressed: widget.onOpenSearch,
                   icon: const Icon(Icons.search_rounded),
                 ),
               ),
               const SizedBox(height: 14),
-              const Text(
-                'Album cua app',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w900,
+              if (widget.controller.listeningHistory.isNotEmpty) ...[
+                _RecentSongShelf(
+                  songs: widget.controller.listeningHistory,
+                  activeId: widget.controller.currentSong?.id,
+                  activePlaying: widget.controller.isPlaying,
+                  activeBusy: widget.controller.resolving,
+                  onClear: widget.controller.clearListeningHistory,
+                  onSongTap: (song) async {
+                    await widget.controller.playSong(
+                      song,
+                      queue: widget.controller.listeningHistory,
+                    );
+                    if (mounted) {
+                      widget.onOpenPlayer();
+                    }
+                  },
+                  onActiveToggle: widget.controller.togglePlay,
+                ),
+                const SizedBox(height: 20),
+              ],
+              ..._albumShelves.map(
+                (shelf) => _FeaturedAlbumShelf(
+                  title: shelf.title,
+                  albums: shelf.albums,
+                  loadingId: _loadingAlbumId,
+                  onAlbumTap: openFeaturedAlbum,
                 ),
               ),
-              const SizedBox(height: 12),
-              _FeaturedAlbumGrid(
-                albums: systemAlbums,
-                loadingId: _loadingAlbumId,
-                onAlbumTap: openFeaturedAlbum,
-              ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 4),
               if (widget.controller.loadingHome)
                 const Center(
                   child: Padding(
@@ -102,7 +147,7 @@ class _HomePageState extends State<HomePage> {
                 const SizedBox(height: 12),
                 BackendNotice(
                   icon: Icons.error_outline_rounded,
-                  title: 'Loi phat nhac',
+                  title: 'Lỗi phát nhạc',
                   message: widget.controller.errorMessage,
                 ),
               ],
@@ -129,7 +174,7 @@ class _HomePageState extends State<HomePage> {
         songs = await widget.controller.music.searchTracks(album.query);
         _albumCache[album.id] = songs;
       } catch (error) {
-        showSnack('Khong tai duoc album: $error');
+        showSnack('Không tải được album: $error');
         return;
       } finally {
         if (mounted) {
@@ -228,7 +273,7 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> showAddToPersonalAlbumDialog(Song song) async {
     if (!libraryGateway.isConfigured) {
-      showSnack('Chua cau hinh Firebase.');
+      showSnack('Chưa cấu hình Firebase.');
       return;
     }
 
@@ -258,7 +303,7 @@ class _HomePageState extends State<HomePage> {
 
               return AlertDialog(
                 backgroundColor: AppColors.card,
-                title: const Text('Them vao album ca nhan'),
+                title: const Text('Thêm vào album cá nhân'),
                 content: SingleChildScrollView(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -275,7 +320,7 @@ class _HomePageState extends State<HomePage> {
                         DropdownButtonFormField<String>(
                           initialValue: createNew ? '__new__' : selectedAlbumId,
                           decoration: const InputDecoration(
-                            labelText: 'Album ca nhan',
+                            labelText: 'Album cá nhân',
                           ),
                           items: [
                             ...availableAlbums.map(
@@ -286,7 +331,7 @@ class _HomePageState extends State<HomePage> {
                             ),
                             const DropdownMenuItem(
                               value: '__new__',
-                              child: Text('Tao album moi'),
+                              child: Text('Tạo album mới'),
                             ),
                           ],
                           onChanged: busy
@@ -305,7 +350,7 @@ class _HomePageState extends State<HomePage> {
                         TextField(
                           controller: newAlbumController,
                           decoration: const InputDecoration(
-                            labelText: 'Ten album ca nhan moi',
+                            labelText: 'Tên album cá nhân mới',
                           ),
                         ),
                     ],
@@ -315,7 +360,7 @@ class _HomePageState extends State<HomePage> {
                   TextButton(
                     onPressed:
                         busy ? null : () => Navigator.of(dialogContext).pop(),
-                    child: const Text('Huy'),
+                    child: const Text('Hủy'),
                   ),
                   FilledButton.icon(
                     onPressed: busy
@@ -323,7 +368,7 @@ class _HomePageState extends State<HomePage> {
                         : () async {
                             if (createNew &&
                                 newAlbumController.text.trim().isEmpty) {
-                              showSnack('Nhap ten album.');
+                              showSnack('Nhập tên album.');
                               return;
                             }
 
@@ -340,7 +385,7 @@ class _HomePageState extends State<HomePage> {
 
                               if (targetAlbum == null) {
                                 throw const LibraryGatewayException(
-                                  'Chon album.',
+                                  'Chọn album.',
                                 );
                               }
 
@@ -352,7 +397,7 @@ class _HomePageState extends State<HomePage> {
 
                               if (dialogContext.mounted) {
                                 Navigator.of(dialogContext).pop(
-                                  'Da them vao ${targetAlbum.title}.',
+                                  'Đã thêm vào ${targetAlbum.title}.',
                                 );
                               }
                             } catch (error) {
@@ -363,7 +408,7 @@ class _HomePageState extends State<HomePage> {
                             }
                           },
                     icon: const Icon(Icons.playlist_add_rounded),
-                    label: const Text('Them'),
+                    label: const Text('Thêm'),
                   ),
                 ],
               );
@@ -391,6 +436,16 @@ class _HomePageState extends State<HomePage> {
     return null;
   }
 
+  List<SystemAlbum> _albumsByIds(List<String> ids) {
+    return ids
+        .map(
+          (id) => systemAlbums.firstWhere(
+            (album) => album.id == id,
+          ),
+        )
+        .toList();
+  }
+
   void showSnack(String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -399,12 +454,181 @@ class _HomePageState extends State<HomePage> {
   }
 }
 
-class _FeaturedAlbumGrid extends StatelessWidget {
+class _RecentSongShelf extends StatelessWidget {
+  final List<Song> songs;
+  final String? activeId;
+  final bool activePlaying;
+  final bool activeBusy;
+  final ValueChanged<Song> onSongTap;
+  final VoidCallback onClear;
+  final VoidCallback? onActiveToggle;
+
+  const _RecentSongShelf({
+    required this.songs,
+    required this.activeId,
+    required this.activePlaying,
+    required this.activeBusy,
+    required this.onSongTap,
+    required this.onClear,
+    required this.onActiveToggle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Expanded(
+              child: Text(
+                'Nghe gan day',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+            TextButton(
+              onPressed: onClear,
+              child: const Text('Xoa'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        SizedBox(
+          height: 168,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            itemCount: songs.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 14),
+            itemBuilder: (context, index) {
+              final song = songs[index];
+              return _RecentSongCard(
+                song: song,
+                active: song.id == activeId,
+                playing: activePlaying,
+                busy: activeBusy,
+                onTap: () => onSongTap(song),
+                onToggle: onActiveToggle,
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _RecentSongCard extends StatelessWidget {
+  final Song song;
+  final bool active;
+  final bool playing;
+  final bool busy;
+  final VoidCallback onTap;
+  final VoidCallback? onToggle;
+
+  const _RecentSongCard({
+    required this.song,
+    required this.active,
+    required this.playing,
+    required this.busy,
+    required this.onTap,
+    required this.onToggle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: active && onToggle != null ? onToggle : onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: SizedBox(
+        width: 118,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox.square(
+              dimension: 118,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  CoverImage(
+                    url: song.coverUrl,
+                    size: double.infinity,
+                    radius: 8,
+                  ),
+                  if (active)
+                    DecoratedBox(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(8),
+                        color: Colors.black.withValues(alpha: 0.32),
+                      ),
+                    ),
+                  if (active)
+                    Center(
+                      child: CircleAvatar(
+                        radius: 18,
+                        backgroundColor:
+                            AppColors.green.withValues(alpha: 0.92),
+                        child: Icon(
+                          busy
+                              ? Icons.hourglass_top_rounded
+                              : playing
+                                  ? Icons.pause_rounded
+                                  : Icons.play_arrow_rounded,
+                          color: Colors.black,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              song.title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              song.artist,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: AppColors.soft,
+                fontSize: 11,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AlbumShelfData {
+  final String title;
+  final List<SystemAlbum> albums;
+
+  const _AlbumShelfData({
+    required this.title,
+    required this.albums,
+  });
+}
+
+class _FeaturedAlbumShelf extends StatelessWidget {
+  final String title;
   final List<SystemAlbum> albums;
   final String loadingId;
   final ValueChanged<SystemAlbum> onAlbumTap;
 
-  const _FeaturedAlbumGrid({
+  const _FeaturedAlbumShelf({
+    required this.title,
     required this.albums,
     required this.loadingId,
     required this.onAlbumTap,
@@ -412,24 +636,38 @@ class _FeaturedAlbumGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: albums.length,
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        mainAxisSpacing: 12,
-        crossAxisSpacing: 12,
-        childAspectRatio: 0.86,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 184,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              physics: const BouncingScrollPhysics(),
+              itemCount: albums.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 14),
+              itemBuilder: (context, index) {
+                final album = albums[index];
+                return _FeaturedAlbumCard(
+                  album: album,
+                  loading: loadingId == album.id,
+                  onTap: () => onAlbumTap(album),
+                );
+              },
+            ),
+          ),
+        ],
       ),
-      itemBuilder: (context, index) {
-        final album = albums[index];
-        return _FeaturedAlbumCard(
-          album: album,
-          loading: loadingId == album.id,
-          onTap: () => onAlbumTap(album),
-        );
-      },
     );
   }
 }
@@ -452,87 +690,81 @@ class _FeaturedAlbumCard extends StatelessWidget {
       child: InkWell(
         onTap: loading ? null : onTap,
         borderRadius: BorderRadius.circular(8),
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: AppColors.card,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: AppColors.line),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(10),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      CoverImage(
-                        url: album.coverUrl,
-                        size: double.infinity,
-                        radius: 7,
-                      ),
-                      DecoratedBox(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(7),
-                          gradient: LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: [
-                              Colors.black.withValues(alpha: 0.02),
-                              Colors.black.withValues(alpha: 0.42),
-                            ],
-                          ),
+        child: SizedBox(
+          width: 138,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox.square(
+                dimension: 138,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    CoverImage(
+                      url: album.coverUrl,
+                      size: double.infinity,
+                      radius: 8,
+                    ),
+                    DecoratedBox(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(8),
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.black.withValues(alpha: 0.02),
+                            Colors.black.withValues(alpha: 0.38),
+                          ],
                         ),
                       ),
-                      Positioned(
-                        right: 8,
-                        bottom: 8,
-                        child: CircleAvatar(
-                          radius: 18,
-                          backgroundColor:
-                              AppColors.green.withValues(alpha: 0.92),
-                          child: loading
-                              ? const SizedBox.square(
-                                  dimension: 16,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Colors.black,
-                                  ),
-                                )
-                              : Icon(
-                                  album.icon,
+                    ),
+                    Positioned(
+                      right: 8,
+                      bottom: 8,
+                      child: CircleAvatar(
+                        radius: 18,
+                        backgroundColor:
+                            AppColors.green.withValues(alpha: 0.92),
+                        child: loading
+                            ? const SizedBox.square(
+                                dimension: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
                                   color: Colors.black,
-                                  size: 19,
                                 ),
-                        ),
+                              )
+                            : Icon(
+                                album.icon,
+                                color: Colors.black,
+                                size: 19,
+                              ),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 9),
-                Text(
-                  album.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w900,
-                  ),
+              ),
+              const SizedBox(height: 9),
+              Text(
+                album.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w900,
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  album.subtitle,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: AppColors.soft,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                  ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                album.subtitle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: AppColors.soft,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),

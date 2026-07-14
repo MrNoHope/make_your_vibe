@@ -12,4 +12,17 @@ class AmbientLayer {
     this.volume = 0,
     this.active = false,
   });
+
+  AmbientLayer copyWith({
+    double? volume,
+    bool? active,
+  }) {
+    return AmbientLayer(
+      id: id,
+      name: name,
+      assetPath: assetPath,
+      volume: volume ?? this.volume,
+      active: active ?? this.active,
+    );
+  }
 }

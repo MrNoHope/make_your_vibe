@@ -25,9 +25,9 @@ class Playlist {
       coverUrl: '${json['coverUrl'] ?? ''}',
       songs: rawSongs is List
           ? rawSongs
-          .whereType<Map<String, dynamic>>()
-          .map(Song.fromJson)
-          .toList()
+              .whereType<Map<String, dynamic>>()
+              .map(Song.fromJson)
+              .toList()
           : const [],
     );
   }
