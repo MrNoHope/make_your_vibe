@@ -19,7 +19,7 @@ class AppPage extends StatelessWidget {
   }
 }
 
-class SectionHeader extends StatelessWidget {
+class SectionHeader extends StatelessWidget {   // Chứa các widget dùng chung để tái sử dụng trong toàn bộ ứng dụng
   const SectionHeader({
     super.key,
     required this.title,

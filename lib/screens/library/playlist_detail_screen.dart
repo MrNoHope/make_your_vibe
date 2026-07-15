@@ -16,7 +16,7 @@ class PlaylistDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(    // Xây dựng giao diện chi tiết của playlist
+    return Scaffold(    // Hiển thị thông tin và danh sách bài hát
       appBar: AppBar(
         title: const Text('Playlist'),
       ),

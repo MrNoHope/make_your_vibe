@@ -16,7 +16,7 @@ class SettingsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppPage(    // Xây dựng màn hình cài đặt của ứng dụng
+    return AppPage(    // Quản lý các tùy chọn của ứng dụng
       child: ListView(
         padding: const EdgeInsets.fromLTRB(18, 8, 18, 180),
         children: [

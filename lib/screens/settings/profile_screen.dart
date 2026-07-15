@@ -13,7 +13,7 @@ class ProfileScreen extends StatelessWidget {
   final VibeController controller;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) {  // Hiển thị và cập nhật thông tin người dùng
     return Scaffold(
       appBar: AppBar(
         title: const Text('Profile'),

@@ -17,7 +17,7 @@ class LibraryPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final liked = controller.likedSongs;  // Lấy danh sách các bài hát người dùng đã yêu thích
+    final liked = controller.likedSongs;  // Hiển thị danh sách nhạc và playlist đã lưu
 
     return AppPage(
       child: ListView(
