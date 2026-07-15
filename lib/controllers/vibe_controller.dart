@@ -47,7 +47,7 @@ class VibeController extends ChangeNotifier {
   static const _favoriteSongsKey = 'make_your_vibe.favorite_songs';
   static const _favoriteAlbumsKey = 'make_your_vibe.favorite_albums';
   static const _maxListeningHistory = 24;
-  static const _maxSearchHistory = 16;
+  static const _maxSearchHistory = 4;
 
   Song? currentSong;
   List<Song> homeSongs = [];
@@ -155,12 +155,12 @@ class VibeController extends ChangeNotifier {
     searching = true;
     errorMessage = '';
     notifyListeners();
+    unawaited(_addSearchHistory(query));
 
     try {
       searchResults = await music.searchTracks(query);
       _setActiveQueue(searchResults);
       currentIndex = 0;
-      unawaited(_addSearchHistory(query));
     } catch (error) {
       errorMessage = 'Search loi: $error';
     }

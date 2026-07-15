@@ -21,76 +21,15 @@ class SoundEffectsPage extends StatelessWidget {
             children: [
               TopBar(
                 title: 'Âm thanh nền',
-                action: IconButton(
-                  tooltip: 'Dừng tất cả',
-                  onPressed: gateway.activeCount == 0 ? null : gateway.stopAll,
-                  icon: const Icon(Icons.stop_circle_outlined),
-                ),
+                action: const SizedBox.shrink(),
               ),
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppColors.card,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: AppColors.line),
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      width: 48,
-                      height: 48,
-                      decoration: BoxDecoration(
-                        color: AppColors.green.withValues(alpha: 0.14),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Icon(
-                        Icons.graphic_eq_rounded,
-                        color: AppColors.green,
-                        size: 28,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    const Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Phối không gian âm thanh',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                          SizedBox(height: 5),
-                          Text(
-                            'Bật từng âm thanh rồi điều chỉnh âm lượng để phối cùng bài hát đang nghe.',
-                            style: TextStyle(
-                              color: AppColors.soft,
-                              fontSize: 12,
-                              height: 1.35,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 9,
-                        vertical: 5,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.panel2,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        '${gateway.activeCount}/${gateway.layers.length}',
-                        style: const TextStyle(fontWeight: FontWeight.w900),
-                      ),
-                    ),
-                  ],
+              const SizedBox(height: 4),
+              const Text(
+                'Phối nhiều âm thanh không gian cùng bài hát đang nghe.',
+                style: TextStyle(
+                  color: AppColors.soft,
+                  fontSize: 13,
+                  height: 1.4,
                 ),
               ),
               if (gateway.errorMessage.isNotEmpty) ...[
@@ -101,9 +40,7 @@ class SoundEffectsPage extends StatelessWidget {
                   message: gateway.errorMessage,
                 ),
               ],
-              const SizedBox(height: 12),
-              _MasterVolumeCard(gateway: gateway),
-              const SizedBox(height: 8),
+              const SizedBox(height: 14),
               for (final layer in gateway.layers)
                 _AmbientControlCard(
                   key: ValueKey(layer.id),
@@ -115,150 +52,6 @@ class SoundEffectsPage extends StatelessWidget {
           ),
         );
       },
-    );
-  }
-}
-
-class _MasterVolumeCard extends StatefulWidget {
-  final AmbientAudioGateway gateway;
-
-  const _MasterVolumeCard({required this.gateway});
-
-  @override
-  State<_MasterVolumeCard> createState() => _MasterVolumeCardState();
-}
-
-class _MasterVolumeCardState extends State<_MasterVolumeCard> {
-  late double value = widget.gateway.masterVolume;
-  bool busy = false;
-
-  @override
-  void didUpdateWidget(covariant _MasterVolumeCard oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    value = widget.gateway.masterVolume;
-  }
-
-  Future<void> _setValue(double next) async {
-    if (busy) return;
-    final safe = next.clamp(0.0, 1.0).toDouble();
-    setState(() {
-      value = safe;
-      busy = true;
-    });
-    try {
-      await widget.gateway.setMasterVolume(safe);
-    } finally {
-      if (mounted) setState(() => busy = false);
-    }
-  }
-
-  Future<void> _openAdjuster() async {
-    var draft = value;
-    final result = await showModalBottomSheet<double>(
-      context: context,
-      showDragHandle: true,
-      isScrollControlled: true,
-      builder: (sheetContext) => StatefulBuilder(
-        builder: (sheetContext, setSheetState) => SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  'Âm lượng tổng',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  '${(draft * 100).round()}%',
-                  style: Theme.of(sheetContext).textTheme.headlineMedium,
-                ),
-                Slider(
-                  value: draft,
-                  divisions: 20,
-                  label: '${(draft * 100).round()}%',
-                  onChanged: (next) => setSheetState(() => draft = next),
-                ),
-                const SizedBox(height: 8),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton(
-                    onPressed: () => Navigator.pop(sheetContext, draft),
-                    child: const Text('Áp dụng'),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-    if (result != null) await _setValue(result);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      margin: EdgeInsets.zero,
-      color: AppColors.card,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
-        side: const BorderSide(color: AppColors.line),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.volume_up_rounded, color: AppColors.green),
-                const SizedBox(width: 10),
-                const Expanded(
-                  child: Text(
-                    'Âm lượng tổng',
-                    style: TextStyle(fontWeight: FontWeight.w900),
-                  ),
-                ),
-                if (busy)
-                  const SizedBox.square(
-                    dimension: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                else
-                  Text(
-                    '${(value * 100).round()}%',
-                    style: const TextStyle(fontWeight: FontWeight.w900),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                IconButton.filledTonal(
-                  tooltip: 'Giảm âm lượng',
-                  onPressed: busy ? null : () => _setValue(value - 0.05),
-                  icon: const Icon(Icons.remove_rounded),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: busy ? null : _openAdjuster,
-                    icon: const Icon(Icons.tune_rounded),
-                    label: const Text('Điều chỉnh'),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                IconButton.filledTonal(
-                  tooltip: 'Tăng âm lượng',
-                  onPressed: busy ? null : () => _setValue(value + 0.05),
-                  icon: const Icon(Icons.add_rounded),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
     );
   }
 }
@@ -369,8 +162,6 @@ class _AmbientControlCardState extends State<_AmbientControlCard> {
   @override
   Widget build(BuildContext context) {
     final active = widget.layer.active;
-    final loading = widget.gateway.isLoading(widget.layer.id);
-
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 5),
       color: AppColors.card,
@@ -424,16 +215,10 @@ class _AmbientControlCardState extends State<_AmbientControlCard> {
                     ],
                   ),
                 ),
-                if (busy || loading)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 13),
-                    child: SizedBox.square(
-                      dimension: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                  )
-                else
-                  Switch(value: active, onChanged: _toggle),
+                Switch(
+                  value: active,
+                  onChanged: busy ? null : _toggle,
+                ),
               ],
             ),
             if (active) ...[

@@ -17,15 +17,16 @@ class SideRail extends StatelessWidget {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final iconColor = isDark ? AppColors.soft : AppColors.lightSoft;
-    final mutedColor = isDark ? AppColors.muted : AppColors.lightMuted;
-    final lineColor = isDark ? AppColors.line : AppColors.lightLine;
     final items = [
       _RailItem(Icons.home_rounded, 'Music'),
       _RailItem(Icons.tune_rounded, 'Sound'),
       _RailItem(Icons.library_music_rounded, 'Library', pageIndex: 3),
-      _RailItem(Icons.settings_rounded, 'Settings', pageIndex: 4),
-      _RailItem(Icons.person_rounded, 'Profile', pageIndex: 5),
     ];
+    const profileItem = _RailItem(
+      Icons.person_rounded,
+      'Hồ sơ',
+      pageIndex: 4,
+    );
 
     return Container(
       width: 54,
@@ -63,20 +64,33 @@ class SideRail extends StatelessWidget {
             );
           }),
           const Spacer(),
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              border: Border.all(color: lineColor),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              Icons.cloud_off_rounded,
-              size: 17,
-              color: mutedColor,
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Tooltip(
+              message: profileItem.label,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(18),
+                onTap: () => onChanged(profileItem.pageIndex!),
+                child: Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: currentIndex == profileItem.pageIndex
+                        ? AppColors.green
+                        : Colors.transparent,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    profileItem.icon,
+                    color: currentIndex == profileItem.pageIndex
+                        ? Colors.black
+                        : iconColor,
+                    size: 19,
+                  ),
+                ),
+              ),
             ),
           ),
-          const SizedBox(height: 12),
         ],
       ),
     );

@@ -13,6 +13,7 @@ class SongTile extends StatelessWidget {
   final VoidCallback? onToggle;
   final VoidCallback? onOpen;
   final VoidCallback? onAddToAlbum;
+  final VoidCallback? onDelete;
   final bool favorite;
   final VoidCallback? onToggleFavorite;
 
@@ -26,6 +27,7 @@ class SongTile extends StatelessWidget {
     this.onToggle,
     this.onOpen,
     this.onAddToAlbum,
+    this.onDelete,
     this.favorite = false,
     this.onToggleFavorite,
   });
@@ -97,6 +99,13 @@ class SongTile extends StatelessWidget {
                 icon: Icons.playlist_add_rounded,
                 onPressed: onAddToAlbum,
               ),
+            if (onDelete != null)
+              _SongControlButton(
+                tooltip: 'Xóa file nhạc',
+                icon: Icons.delete_outline_rounded,
+                color: AppColors.pink,
+                onPressed: onDelete,
+              ),
             if (active)
               _ActiveSongControls(
                 playing: playing,
@@ -129,6 +138,7 @@ class SongList extends StatelessWidget {
   final VoidCallback? onActiveToggle;
   final VoidCallback? onActiveOpen;
   final ValueChanged<Song>? onSongAddToAlbum;
+  final ValueChanged<Song>? onSongDelete;
   final bool Function(Song song)? isSongFavorite;
   final ValueChanged<Song>? onSongFavoriteToggle;
 
@@ -142,6 +152,7 @@ class SongList extends StatelessWidget {
     this.onActiveToggle,
     this.onActiveOpen,
     this.onSongAddToAlbum,
+    this.onSongDelete,
     this.isSongFavorite,
     this.onSongFavoriteToggle,
   });
@@ -160,6 +171,7 @@ class SongList extends StatelessWidget {
       children: songs.map((song) {
         final active = song.id == activeId;
         final canAddToAlbum = onSongAddToAlbum != null;
+        final canDelete = onSongDelete != null;
         final canFavorite = onSongFavoriteToggle != null;
 
         return Padding(
@@ -173,6 +185,7 @@ class SongList extends StatelessWidget {
             onToggle: active ? onActiveToggle : null,
             onOpen: active ? onActiveOpen : null,
             onAddToAlbum: canAddToAlbum ? () => onSongAddToAlbum!(song) : null,
+            onDelete: canDelete ? () => onSongDelete!(song) : null,
             favorite: isSongFavorite?.call(song) ?? false,
             onToggleFavorite:
                 canFavorite ? () => onSongFavoriteToggle!(song) : null,

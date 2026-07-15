@@ -8,7 +8,6 @@ import '../../screens/player/ambient_mixer_sheet.dart';
 import '../../screens/player/player_screen.dart';
 import '../../screens/search/search_page.dart';
 import '../../screens/settings/profile_screen.dart';
-import '../../screens/settings/settings_page.dart';
 import '../../screens/sound/sound_effects_page.dart';
 import '../../widgets/mini_player.dart';
 
@@ -97,14 +96,13 @@ class _MainShellState extends State<MainShell> {
           });
         },
       ),
-      SettingsPage(
+      ProfileScreen(
         onLogout: widget.onLogout,
         darkMode: widget.darkMode,
         onDarkModeChanged: widget.onDarkModeChanged,
         language: widget.language,
         onLanguageChanged: widget.onLanguageChanged,
       ),
-      const ProfileScreen(),
     ];
 
     return Scaffold(

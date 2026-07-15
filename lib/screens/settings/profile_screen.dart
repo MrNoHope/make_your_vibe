@@ -6,12 +6,26 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/app_colors.dart';
+import '../../core/app_language.dart';
 import '../../models/user_profile.dart';
 import '../../services/user_gateway.dart';
 import '../../widgets/common_widgets.dart';
 
 class ProfileScreen extends StatefulWidget {
-  const ProfileScreen({super.key});
+  final VoidCallback onLogout;
+  final bool darkMode;
+  final ValueChanged<bool> onDarkModeChanged;
+  final AppLanguage language;
+  final VoidCallback onLanguageChanged;
+
+  const ProfileScreen({
+    super.key,
+    required this.onLogout,
+    required this.darkMode,
+    required this.onDarkModeChanged,
+    required this.language,
+    required this.onLanguageChanged,
+  });
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -58,7 +72,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  Future<void> pickAvatar() async {
+  Future<Uint8List?> pickAvatarBytes() async {
     final result = await FilePicker.pickFiles(
       type: FileType.image,
       allowMultiple: false,
@@ -68,45 +82,145 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final bytes = file?.bytes;
 
     if (bytes == null || bytes.isEmpty) {
-      return;
+      return null;
     }
 
     if (bytes.length > 2 * 1024 * 1024) {
       setState(() {
         message = 'Ảnh quá lớn. Chọn ảnh dưới 2 MB.';
       });
-      return;
+      return null;
     }
 
-    final profileId = profile?.id ?? '';
-    if (profileId.isEmpty) {
-      return;
-    }
-
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('$_avatarPrefix$profileId', base64Encode(bytes));
-
-    if (!mounted) return;
-    setState(() {
-      customAvatarBytes = bytes;
-      message = 'Đã đổi ảnh hồ sơ.';
-    });
+    return bytes;
   }
 
-  Future<void> resetAvatar() async {
+  Future<void> showEditProfileDialog() async {
     final profileId = profile?.id ?? '';
     if (profileId.isEmpty) {
       return;
     }
 
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('$_avatarPrefix$profileId');
+    final nameController = TextEditingController(text: _displayName(profile));
+    var draftAvatar = customAvatarBytes;
 
-    if (!mounted) return;
-    setState(() {
-      customAvatarBytes = null;
-      message = 'Đã dùng lại avatar tài khoản.';
-    });
+    try {
+      final saved = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) {
+          var busy = false;
+
+          return StatefulBuilder(
+            builder: (context, setDialogState) => AlertDialog(
+              backgroundColor: AppColors.card,
+              title: Row(
+                children: [
+                  const Expanded(child: Text('Chỉnh sửa hồ sơ')),
+                  IconButton(
+                    tooltip: 'Đóng',
+                    onPressed:
+                        busy ? null : () => Navigator.of(dialogContext).pop(),
+                    icon: const Icon(Icons.close_rounded),
+                  ),
+                ],
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _ProfileAvatarPreview(
+                      customBytes: draftAvatar,
+                      imageUrl: profile?.avatarUrl.trim() ?? '',
+                    ),
+                    const SizedBox(height: 14),
+                    OutlinedButton.icon(
+                      onPressed: busy
+                          ? null
+                          : () async {
+                              final picked = await pickAvatarBytes();
+                              if (picked == null) {
+                                return;
+                              }
+                              setDialogState(() {
+                                draftAvatar = picked;
+                              });
+                            },
+                      icon: const Icon(Icons.upload_rounded),
+                      label: const Text('Chọn ảnh từ máy'),
+                    ),
+                    const SizedBox(height: 14),
+                    TextField(
+                      controller: nameController,
+                      decoration: const InputDecoration(
+                        labelText: 'Tên hiển thị',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                FilledButton.icon(
+                  onPressed: busy
+                      ? null
+                      : () async {
+                          final name = nameController.text.trim();
+                          if (name.isEmpty) {
+                            setState(() {
+                              message = 'Nhập tên hiển thị.';
+                            });
+                            return;
+                          }
+
+                          setDialogState(() {
+                            busy = true;
+                          });
+
+                          try {
+                            await userGateway.updateDisplayName(name);
+                            if (draftAvatar != null) {
+                              final prefs =
+                                  await SharedPreferences.getInstance();
+                              await prefs.setString(
+                                '$_avatarPrefix$profileId',
+                                base64Encode(draftAvatar!),
+                              );
+                            }
+
+                            if (dialogContext.mounted) {
+                              Navigator.of(dialogContext).pop(true);
+                            }
+                          } catch (error) {
+                            setDialogState(() {
+                              busy = false;
+                            });
+                            if (mounted) {
+                              setState(() {
+                                message = '$error';
+                              });
+                            }
+                          }
+                        },
+                  icon: const Icon(Icons.check_rounded),
+                  label: const Text('Lưu'),
+                ),
+              ],
+            ),
+          );
+        },
+      );
+
+      if (saved == true) {
+        await loadProfile();
+        if (!mounted) {
+          return;
+        }
+        setState(() {
+          message = 'Đã cập nhật hồ sơ.';
+        });
+      }
+    } finally {
+      nameController.dispose();
+    }
   }
 
   Future<Uint8List?> _loadCustomAvatar(String profileId) async {
@@ -140,18 +254,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
         children: [
           TopBar(
             title: 'Hồ sơ',
-            action: IconButton(
-              tooltip: 'Tải lại',
-              onPressed: loading ? null : loadProfile,
-              icon: const Icon(Icons.refresh_rounded),
-            ),
+            action: const SizedBox.shrink(),
           ),
           const SizedBox(height: 18),
           Center(
             child: ProfileAvatar(
               customBytes: customAvatarBytes,
               imageUrl: avatarUrl,
-              onPick: pickAvatar,
             ),
           ),
           const SizedBox(height: 14),
@@ -169,24 +278,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
             textAlign: TextAlign.center,
             style: const TextStyle(color: AppColors.muted),
           ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: FilledButton.icon(
-                  onPressed: loading ? null : pickAvatar,
-                  icon: const Icon(Icons.photo_camera_rounded),
-                  label: const Text('Đổi ảnh'),
-                ),
-              ),
-              const SizedBox(width: 10),
-              IconButton.filledTonal(
-                tooltip: 'Dùng avatar tài khoản',
-                onPressed: customAvatarBytes == null ? null : resetAvatar,
-                icon: const Icon(Icons.restart_alt_rounded),
-              ),
-            ],
-          ),
           if (message.isNotEmpty) ...[
             const SizedBox(height: 12),
             Text(
@@ -200,26 +291,76 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
           ],
-          const SizedBox(height: 18),
-          ProfileInfoTile(
-            icon: Icons.account_circle_rounded,
-            title: 'Nguồn avatar',
-            value: customAvatarBytes == null
-                ? avatarUrl.isEmpty
-                    ? 'Mặc định'
-                    : 'Tài khoản đăng nhập'
-                : 'Ảnh đã chọn',
+          const SizedBox(height: 22),
+          _ProfileSettingTile(
+            icon: Icons.person_rounded,
+            title: widget.language.text(
+              vi: 'Hồ sơ',
+              en: 'Profile',
+            ),
+            subtitle: widget.language.text(
+              vi: 'Chỉnh tên và ảnh đại diện',
+              en: 'Edit name and profile photo',
+            ),
+            trailing: const Icon(
+              Icons.chevron_right_rounded,
+              color: AppColors.soft,
+            ),
+            onTap: loading ? null : showEditProfileDialog,
           ),
-          ProfileInfoTile(
-            icon: Icons.mail_rounded,
-            title: 'Email',
-            value: email.isEmpty ? 'Chưa có' : email,
+          _ProfileSettingTile(
+            icon: Icons.language_rounded,
+            title: widget.language.text(
+              vi: 'Ngôn ngữ',
+              en: 'Language',
+            ),
+            subtitle: widget.language.label,
+            trailing: IconButton(
+              tooltip: widget.language.text(
+                vi: 'Đổi ngôn ngữ',
+                en: 'Change language',
+              ),
+              onPressed: widget.onLanguageChanged,
+              icon: const Icon(Icons.swap_horiz_rounded),
+            ),
           ),
-          ProfileInfoTile(
-            icon: Icons.verified_user_rounded,
-            title: 'UID',
-            value: user?.id.isEmpty ?? true ? 'Chưa đăng nhập' : user!.id,
+          _ProfileSettingTile(
+            icon: widget.darkMode
+                ? Icons.dark_mode_rounded
+                : Icons.light_mode_rounded,
+            title: widget.language.text(
+              vi: 'Giao diện tối',
+              en: 'Dark mode',
+            ),
+            subtitle: widget.darkMode
+                ? widget.language.text(
+                    vi: 'Đang dùng giao diện tối',
+                    en: 'Dark theme is active',
+                  )
+                : widget.language.text(
+                    vi: 'Đang dùng giao diện sáng',
+                    en: 'Light theme is active',
+                  ),
+            trailing: Switch(
+              value: widget.darkMode,
+              onChanged: widget.onDarkModeChanged,
+            ),
           ),
+          const SizedBox(height: 6),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: widget.onLogout,
+              icon: const Icon(Icons.logout_rounded),
+              label: Text(
+                widget.language.text(
+                  vi: 'Đăng xuất',
+                  en: 'Logout',
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 92),
         ],
       ),
     );
@@ -240,16 +381,79 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 }
 
+class _ProfileSettingTile extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final Widget trailing;
+  final VoidCallback? onTap;
+
+  const _ProfileSettingTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.trailing,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 9),
+        padding: const EdgeInsets.fromLTRB(12, 10, 6, 10),
+        decoration: BoxDecoration(
+          color: isDark ? AppColors.card2 : Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isDark ? AppColors.line : AppColors.lightLine,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: AppColors.green, size: 22),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: isDark ? AppColors.muted : AppColors.lightMuted,
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            trailing,
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class ProfileAvatar extends StatelessWidget {
   final Uint8List? customBytes;
   final String imageUrl;
-  final VoidCallback onPick;
 
   const ProfileAvatar({
     super.key,
     required this.customBytes,
     required this.imageUrl,
-    required this.onPick,
   });
 
   @override
@@ -271,41 +475,63 @@ class ProfileAvatar extends StatelessWidget {
                 errorBuilder: (_, __, ___) => const _AvatarFallback(),
               );
 
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        Container(
-          width: 96,
-          height: 96,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(
-              color: AppColors.green,
-              width: 2,
-            ),
-            gradient: AppColors.darkGradient,
-          ),
-          child: ClipOval(
-            child: avatar ?? const _AvatarFallback(),
-          ),
+    return Container(
+      width: 96,
+      height: 96,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: AppColors.green,
+          width: 2,
         ),
-        Positioned(
-          right: -2,
-          bottom: -2,
-          child: SizedBox.square(
-            dimension: 34,
-            child: IconButton.filled(
-              tooltip: 'Đổi ảnh',
-              onPressed: onPick,
-              padding: EdgeInsets.zero,
-              icon: const Icon(
-                Icons.edit_rounded,
-                size: 18,
-              ),
-            ),
-          ),
-        ),
-      ],
+        gradient: AppColors.darkGradient,
+      ),
+      child: ClipOval(
+        child: avatar ?? const _AvatarFallback(),
+      ),
+    );
+  }
+}
+
+class _ProfileAvatarPreview extends StatelessWidget {
+  final Uint8List? customBytes;
+  final String imageUrl;
+
+  const _ProfileAvatarPreview({
+    required this.customBytes,
+    required this.imageUrl,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final avatar = customBytes != null
+        ? Image.memory(
+            customBytes!,
+            width: 88,
+            height: 88,
+            fit: BoxFit.cover,
+          )
+        : imageUrl.isEmpty
+            ? null
+            : Image.network(
+                imageUrl,
+                width: 88,
+                height: 88,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => const _AvatarFallback(),
+              );
+
+    return Container(
+      width: 92,
+      height: 92,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(color: AppColors.green, width: 2),
+        gradient: AppColors.darkGradient,
+      ),
+      child: ClipOval(
+        child: avatar ?? const _AvatarFallback(),
+      ),
     );
   }
 }
@@ -320,62 +546,6 @@ class _AvatarFallback extends StatelessWidget {
         Icons.person_rounded,
         size: 46,
         color: AppColors.green,
-      ),
-    );
-  }
-}
-
-class ProfileInfoTile extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String value;
-
-  const ProfileInfoTile({
-    super.key,
-    required this.icon,
-    required this.title,
-    required this.value,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 11),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.card,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.line),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            icon,
-            color: AppColors.green,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              title,
-              style: const TextStyle(
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Flexible(
-            child: Text(
-              value,
-              textAlign: TextAlign.right,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: AppColors.muted,
-                fontSize: 11,
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }

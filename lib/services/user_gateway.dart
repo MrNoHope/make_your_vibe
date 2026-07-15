@@ -12,6 +12,7 @@ abstract class UserGateway {
   Future<bool> register(String name, String email, String password);
   Future<bool> signInWithGoogle();
   Future<bool> signInWithFacebook();
+  Future<void> updateDisplayName(String name);
   Future<void> sendPasswordReset(String email);
   Future<void> logout();
 }
@@ -98,6 +99,19 @@ class FirebaseUserGateway implements UserGateway {
     final credential = FacebookAuthProvider.credential(token.tokenString);
     await _auth.signInWithCredential(credential);
     return true;
+  }
+
+  @override
+  Future<void> updateDisplayName(String name) async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      throw FirebaseAuthException(
+        code: 'login-required',
+        message: 'Login required.',
+      );
+    }
+    await user.updateDisplayName(name.trim());
+    await user.reload();
   }
 
   @override

@@ -197,39 +197,12 @@ class _LibraryPageState extends State<LibraryPage> {
                   ),
                   const SizedBox(height: 16),
                 ],
-                const SectionHeader(title: 'Âm nhạc cá nhân'),
-                const SizedBox(height: 12),
-                if (uploadedSongs.isEmpty)
-                  const BackendNotice(
-                    icon: Icons.audio_file_rounded,
-                    title: 'Chưa có file nhạc',
-                    message: 'Nhấn dấu + phía trên để upload nhạc của bạn.',
-                  )
-                else
-                  SongList(
-                    songs: uploadedSongs,
-                    activeId: widget.controller.currentSong?.id,
-                    activePlaying: widget.controller.isPlaying,
-                    activeBusy: widget.controller.resolving,
-                    onSongTap: (song) async {
-                      await widget.controller.playSong(
-                        song,
-                        queue: uploadedSongs,
-                        context: const PlayContextInfo(
-                          type: PlayOriginType.library,
-                          title: 'Âm nhạc cá nhân',
-                        ),
-                      );
-                      if (mounted) {
-                        widget.onOpenPlayer();
-                      }
-                    },
-                    onActiveToggle: widget.controller.togglePlay,
-                    onActiveOpen: widget.onOpenPlayer,
-                    onSongAddToAlbum: showAddLibrarySongToAlbumDialog,
-                    isSongFavorite: widget.controller.isFavoriteSong,
-                    onSongFavoriteToggle: widget.controller.toggleFavoriteSong,
-                  ),
+                _PersonalMusicTile(
+                  count: uploadedSongs.length,
+                  coverUrl:
+                      uploadedSongs.isEmpty ? '' : uploadedSongs.first.coverUrl,
+                  onTap: openPersonalMusic,
+                ),
                 const SizedBox(height: 22),
                 const SectionHeader(title: 'Album cá nhân'),
                 const SizedBox(height: 12),
@@ -295,6 +268,64 @@ class _LibraryPageState extends State<LibraryPage> {
         ),
       ),
     );
+  }
+
+  Future<void> openPersonalMusic() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => _PersonalMusicScreen(
+          initialSongs: uploadedSongs,
+          controller: widget.controller,
+          onOpenPlayer: widget.onOpenPlayer,
+          onAddToAlbum: showAddLibrarySongToAlbumDialog,
+          onDelete: deleteUploadedSong,
+        ),
+      ),
+    );
+    await loadLibrary();
+  }
+
+  Future<bool> deleteUploadedSong(Song song) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: AppColors.card,
+        title: const Text('Xóa file nhạc?'),
+        content: Text(
+          '"${song.title}" sẽ bị xóa khỏi Âm nhạc cá nhân và tất cả album cá nhân.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Hủy'),
+          ),
+          FilledButton.icon(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            icon: const Icon(Icons.delete_outline_rounded),
+            label: const Text('Xóa'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) {
+      return false;
+    }
+
+    try {
+      if (widget.controller.currentSong?.storedId == song.storedId) {
+        await widget.controller.reset();
+      }
+      await libraryGateway.deleteUploadedSong(song);
+      if (widget.controller.isFavoriteSong(song)) {
+        await widget.controller.removeFavoriteSong(song);
+      }
+      await loadLibrary();
+      showSnack('Đã xóa ${song.title}.');
+      return true;
+    } catch (error) {
+      showSnack('$error');
+      return false;
+    }
   }
 
   Future<void> showCreateAlbumDialog() async {
@@ -405,7 +436,6 @@ class _LibraryPageState extends State<LibraryPage> {
 
   Future<void> showUploadSongDialog() async {
     final titleController = TextEditingController();
-    final artistController = TextEditingController();
     PickedFileBytes? audio;
     PickedFileBytes? cover;
 
@@ -414,7 +444,6 @@ class _LibraryPageState extends State<LibraryPage> {
         context: context,
         builder: (dialogContext) {
           var busy = false;
-          var selectedAlbumId = '';
 
           return StatefulBuilder(
             builder: (context, setDialogState) {
@@ -452,52 +481,6 @@ class _LibraryPageState extends State<LibraryPage> {
                         ),
                       ),
                       const SizedBox(height: 10),
-                      TextField(
-                        controller: artistController,
-                        decoration: const InputDecoration(
-                          labelText: 'Nghệ sĩ',
-                        ),
-                      ),
-                      if (albums.isNotEmpty) ...[
-                        const SizedBox(height: 10),
-                        DropdownButtonFormField<String>(
-                          initialValue: selectedAlbumId,
-                          decoration: const InputDecoration(
-                            labelText: 'Thêm vào album (không bắt buộc)',
-                          ),
-                          items: [
-                            const DropdownMenuItem(
-                              value: '',
-                              child: Text('Chỉ lưu trong Âm nhạc cá nhân'),
-                            ),
-                            ...albums.map(
-                              (album) => DropdownMenuItem(
-                                value: album.id,
-                                child: Text(
-                                  album.title,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ),
-                          ],
-                          onChanged: busy
-                              ? null
-                              : (value) {
-                                  setDialogState(() {
-                                    selectedAlbumId = value ?? '';
-                                  });
-                                },
-                        ),
-                      ],
-                      const SizedBox(height: 12),
-                      const BackendNotice(
-                        icon: Icons.info_outline_rounded,
-                        title: 'Có thể kết hợp hai nguồn nhạc',
-                        message:
-                            'Album cá nhân hỗ trợ cả file upload và nhạc đã thêm từ Trang chủ hoặc Tìm kiếm.',
-                      ),
-                      const SizedBox(height: 14),
                       FilePickButton(
                         icon: Icons.image_rounded,
                         label: cover?.name ?? 'Cover',
@@ -541,12 +524,8 @@ class _LibraryPageState extends State<LibraryPage> {
                               await libraryGateway.uploadSong(
                                 UploadedSongInput(
                                   title: titleController.text,
-                                  artist: artistController.text,
                                   fileName: audio!.name,
                                   audioBytes: audio!.bytes,
-                                  albumId: selectedAlbumId,
-                                  albumTitle:
-                                      albumById(selectedAlbumId)?.title ?? '',
                                   coverBytes: cover?.bytes,
                                   coverName: cover?.name,
                                 ),
@@ -578,7 +557,6 @@ class _LibraryPageState extends State<LibraryPage> {
       }
     } finally {
       titleController.dispose();
-      artistController.dispose();
     }
   }
 
@@ -711,12 +689,10 @@ class _LibraryPageState extends State<LibraryPage> {
         builder: (dialogContext) {
           var busy = false;
           var createNew = albums.isEmpty;
-          var selectedAlbumId = albums.isEmpty ? '' : albums.first.id;
+          final selectedAlbumIds = <String>{};
 
           return StatefulBuilder(
             builder: (context, setDialogState) {
-              final selectedAlbum = albumById(selectedAlbumId);
-
               return AlertDialog(
                 backgroundColor: AppColors.card,
                 title: const Text('Thêm vào album cá nhân'),
@@ -733,34 +709,56 @@ class _LibraryPageState extends State<LibraryPage> {
                       ),
                       const SizedBox(height: 12),
                       if (albums.isNotEmpty) ...[
-                        DropdownButtonFormField<String>(
-                          initialValue: createNew ? '__new__' : selectedAlbumId,
-                          decoration: const InputDecoration(
-                            labelText: 'Album cá nhân',
+                        const Text(
+                          'Chọn một hoặc nhiều album',
+                          style: TextStyle(fontWeight: FontWeight.w800),
+                        ),
+                        const SizedBox(height: 6),
+                        ConstrainedBox(
+                          constraints: const BoxConstraints(maxHeight: 220),
+                          child: ListView(
+                            shrinkWrap: true,
+                            children: albums
+                                .map(
+                                  (album) => CheckboxListTile(
+                                    value: selectedAlbumIds.contains(album.id),
+                                    contentPadding: EdgeInsets.zero,
+                                    dense: true,
+                                    title: Text(
+                                      album.title,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    onChanged: busy
+                                        ? null
+                                        : (selected) {
+                                            setDialogState(() {
+                                              if (selected == true) {
+                                                selectedAlbumIds.add(album.id);
+                                              } else {
+                                                selectedAlbumIds
+                                                    .remove(album.id);
+                                              }
+                                            });
+                                          },
+                                  ),
+                                )
+                                .toList(growable: false),
                           ),
-                          items: [
-                            ...albums.map(
-                              (album) => DropdownMenuItem(
-                                value: album.id,
-                                child: Text(album.title),
-                              ),
-                            ),
-                            const DropdownMenuItem(
-                              value: '__new__',
-                              child: Text('Tạo album mới'),
-                            ),
-                          ],
+                        ),
+                        CheckboxListTile(
+                          value: createNew,
+                          contentPadding: EdgeInsets.zero,
+                          dense: true,
+                          title: const Text('Tạo thêm album mới'),
                           onChanged: busy
                               ? null
                               : (value) {
                                   setDialogState(() {
-                                    createNew = value == '__new__';
-                                    selectedAlbumId =
-                                        createNew ? '' : value ?? '';
+                                    createNew = value == true;
                                   });
                                 },
                         ),
-                        const SizedBox(height: 12),
                       ],
                       if (createNew)
                         TextField(
@@ -782,9 +780,13 @@ class _LibraryPageState extends State<LibraryPage> {
                     onPressed: busy
                         ? null
                         : () async {
-                            if (createNew &&
-                                titleController.text.trim().isEmpty) {
+                            final newTitle = titleController.text.trim();
+                            if (createNew && newTitle.isEmpty) {
                               showSnack('Nhập tên album.');
+                              return;
+                            }
+                            if (selectedAlbumIds.isEmpty && !createNew) {
+                              showSnack('Chọn ít nhất một album.');
                               return;
                             }
 
@@ -793,27 +795,33 @@ class _LibraryPageState extends State<LibraryPage> {
                             });
 
                             try {
-                              final targetAlbum = createNew
-                                  ? await libraryGateway.createAlbum(
-                                      title: titleController.text,
-                                    )
-                                  : selectedAlbum;
-
-                              if (targetAlbum == null) {
-                                throw const LibraryGatewayException(
-                                  'Chọn album.',
+                              final targetAlbums = albums
+                                  .where(
+                                    (album) =>
+                                        selectedAlbumIds.contains(album.id),
+                                  )
+                                  .toList();
+                              if (createNew) {
+                                targetAlbums.add(
+                                  await libraryGateway.createAlbum(
+                                    title: newTitle,
+                                  ),
                                 );
                               }
 
-                              await libraryGateway.saveSongToAlbum(
-                                song: song,
-                                albumId: targetAlbum.id,
-                                albumTitle: targetAlbum.title,
-                              );
+                              for (final targetAlbum in targetAlbums) {
+                                await libraryGateway.saveSongToAlbum(
+                                  song: song,
+                                  albumId: targetAlbum.id,
+                                  albumTitle: targetAlbum.title,
+                                );
+                              }
 
                               if (dialogContext.mounted) {
                                 Navigator.of(dialogContext).pop(
-                                  'Đã thêm vào ${targetAlbum.title}.',
+                                  targetAlbums.length == 1
+                                      ? 'Đã thêm vào ${targetAlbums.first.title}.'
+                                      : 'Đã thêm vào ${targetAlbums.length} album cá nhân.',
                                 );
                               }
                             } catch (error) {
@@ -969,6 +977,7 @@ class _LibraryPageState extends State<LibraryPage> {
         builder: (_) => _AlbumDetailScreen(
           album: album,
           shared: shared,
+          editable: !shared,
           controller: widget.controller,
           onOpenPlayer: widget.onOpenPlayer,
           loadAlbum: () => shared
@@ -980,6 +989,9 @@ class _LibraryPageState extends State<LibraryPage> {
         ),
       ),
     );
+    if (!shared) {
+      await loadLibrary();
+    }
   }
 
   Future<PickedFileBytes?> pickFile(FileType type) async {
@@ -1024,7 +1036,7 @@ enum _LibraryCreateAction { album, upload }
 
 enum _AlbumMenuAction { share }
 
-enum _AlbumSongAction { play, addToAlbum, openPlayer }
+enum _AlbumSongAction { play, addToAlbum, removeFromAlbum, openPlayer }
 
 class _FavoriteSongsTile extends StatelessWidget {
   final int count;
@@ -1145,9 +1157,239 @@ class _FavoriteSongsCover extends StatelessWidget {
   }
 }
 
+class _PersonalMusicTile extends StatelessWidget {
+  final int count;
+  final String coverUrl;
+  final VoidCallback onTap;
+
+  const _PersonalMusicTile({
+    required this.count,
+    required this.coverUrl,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final subtitle = count == 0
+        ? 'File tải lên • Chưa có bài hát'
+        : 'File tải lên • $count bài hát';
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Row(
+            children: [
+              SizedBox.square(
+                dimension: 64,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    if (coverUrl.trim().isNotEmpty)
+                      CoverImage(url: coverUrl, size: 64, radius: 8)
+                    else
+                      Container(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(8),
+                          gradient: const LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              Color(0xFF0D5C63),
+                              Color(0xFF28A17A),
+                              Color(0xFF9BE564),
+                            ],
+                          ),
+                        ),
+                      ),
+                    DecoratedBox(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(8),
+                        color: Colors.black.withValues(alpha: 0.1),
+                      ),
+                    ),
+                    const Center(
+                      child: Icon(
+                        Icons.audio_file_rounded,
+                        color: Colors.white,
+                        size: 30,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Âm nhạc cá nhân',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.soft,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: AppColors.soft,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PersonalMusicScreen extends StatefulWidget {
+  final List<Song> initialSongs;
+  final VibeController controller;
+  final VoidCallback onOpenPlayer;
+  final ValueChanged<Song> onAddToAlbum;
+  final Future<bool> Function(Song song) onDelete;
+
+  const _PersonalMusicScreen({
+    required this.initialSongs,
+    required this.controller,
+    required this.onOpenPlayer,
+    required this.onAddToAlbum,
+    required this.onDelete,
+  });
+
+  @override
+  State<_PersonalMusicScreen> createState() => _PersonalMusicScreenState();
+}
+
+class _PersonalMusicScreenState extends State<_PersonalMusicScreen> {
+  late List<Song> songs = List.of(widget.initialSongs);
+
+  Future<void> _deleteSong(Song song) async {
+    final deleted = await widget.onDelete(song);
+    if (!deleted || !mounted) {
+      return;
+    }
+
+    setState(() {
+      songs = songs
+          .where((item) => item.storedId != song.storedId)
+          .toList(growable: false);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          children: [
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                children: [
+                  Row(
+                    children: [
+                      IconButton(
+                        tooltip: 'Quay lại',
+                        onPressed: () => Navigator.of(context).maybePop(),
+                        icon: const Icon(Icons.arrow_back_rounded),
+                      ),
+                      const SizedBox(width: 6),
+                      const Expanded(
+                        child: Text(
+                          'Âm nhạc cá nhân',
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Các file nhạc bạn đã tải lên.',
+                    style: TextStyle(
+                      color: AppColors.soft,
+                      fontSize: 13,
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  if (songs.isEmpty)
+                    const BackendNotice(
+                      icon: Icons.audio_file_rounded,
+                      title: 'Chưa có file nhạc',
+                      message: 'Nhấn dấu + trong Thư viện để upload bài hát.',
+                    )
+                  else
+                    AnimatedBuilder(
+                      animation: widget.controller,
+                      builder: (context, _) => SongList(
+                        songs: songs,
+                        activeId: widget.controller.currentSong?.id,
+                        activePlaying: widget.controller.isPlaying,
+                        activeBusy: widget.controller.resolving,
+                        onSongTap: (song) async {
+                          await widget.controller.playSong(
+                            song,
+                            queue: songs,
+                            context: const PlayContextInfo(
+                              type: PlayOriginType.library,
+                              title: 'Âm nhạc cá nhân',
+                            ),
+                          );
+                          if (mounted) {
+                            widget.onOpenPlayer();
+                          }
+                        },
+                        onActiveToggle: widget.controller.togglePlay,
+                        onActiveOpen: widget.onOpenPlayer,
+                        onSongAddToAlbum: widget.onAddToAlbum,
+                        onSongDelete: _deleteSong,
+                        isSongFavorite: widget.controller.isFavoriteSong,
+                        onSongFavoriteToggle:
+                            widget.controller.toggleFavoriteSong,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            MiniPlayerBar(
+              controller: widget.controller,
+              onTap: widget.onOpenPlayer,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _AlbumDetailScreen extends StatefulWidget {
   final Playlist album;
   final bool shared;
+  final bool editable;
   final bool favoriteEnabled;
   final VibeController controller;
   final VoidCallback onOpenPlayer;
@@ -1159,6 +1401,7 @@ class _AlbumDetailScreen extends StatefulWidget {
   const _AlbumDetailScreen({
     required this.album,
     required this.shared,
+    this.editable = false,
     this.favoriteEnabled = true,
     required this.controller,
     required this.onOpenPlayer,
@@ -1173,7 +1416,7 @@ class _AlbumDetailScreen extends StatefulWidget {
 }
 
 class _AlbumDetailScreenState extends State<_AlbumDetailScreen> {
-  late final Future<Playlist> _albumFuture;
+  late Future<Playlist> _albumFuture;
 
   @override
   void initState() {
@@ -1223,6 +1466,31 @@ class _AlbumDetailScreenState extends State<_AlbumDetailScreen> {
     widget.onShareAlbum(album);
   }
 
+  Future<void> _removeSongFromAlbum(Song song) async {
+    try {
+      await libraryGateway.removeSongFromAlbum(
+        song: song,
+        albumId: widget.album.id,
+      );
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _albumFuture = widget.loadAlbum();
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Đã xóa ${song.title} khỏi album.')),
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$error')),
+      );
+    }
+  }
+
   bool _isCurrentAlbum(Playlist album) {
     final currentId = widget.controller.currentSong?.id;
     if (currentId == null) {
@@ -1254,6 +1522,7 @@ class _AlbumDetailScreenState extends State<_AlbumDetailScreen> {
                       return _AlbumDetailContent(
                         album: album,
                         shared: widget.shared,
+                        editable: widget.editable,
                         loading: loading,
                         error: snapshot.error,
                         controller: widget.controller,
@@ -1269,6 +1538,8 @@ class _AlbumDetailScreenState extends State<_AlbumDetailScreen> {
                             : () => _playAlbum(album),
                         onSongTap: (song) => _playSong(album, song),
                         onSongAddToAlbum: widget.onSongAddToAlbum,
+                        onSongRemove:
+                            widget.editable ? _removeSongFromAlbum : null,
                         onOpenPlayer: widget.onOpenPlayer,
                       );
                     },
@@ -1290,6 +1561,7 @@ class _AlbumDetailScreenState extends State<_AlbumDetailScreen> {
 class _AlbumDetailContent extends StatelessWidget {
   final Playlist album;
   final bool shared;
+  final bool editable;
   final bool loading;
   final Object? error;
   final VibeController controller;
@@ -1300,11 +1572,13 @@ class _AlbumDetailContent extends StatelessWidget {
   final VoidCallback? onPlayAlbum;
   final ValueChanged<Song> onSongTap;
   final ValueChanged<Song> onSongAddToAlbum;
+  final ValueChanged<Song>? onSongRemove;
   final VoidCallback onOpenPlayer;
 
   const _AlbumDetailContent({
     required this.album,
     required this.shared,
+    required this.editable,
     required this.loading,
     required this.error,
     required this.controller,
@@ -1315,6 +1589,7 @@ class _AlbumDetailContent extends StatelessWidget {
     required this.onPlayAlbum,
     required this.onSongTap,
     required this.onSongAddToAlbum,
+    required this.onSongRemove,
     required this.onOpenPlayer,
   });
 
@@ -1384,6 +1659,8 @@ class _AlbumDetailContent extends StatelessWidget {
               onTap: () => onSongTap(song),
               onFavoriteToggle: () => controller.toggleFavoriteSong(song),
               onAddToAlbum: () => onSongAddToAlbum(song),
+              canRemove: editable && onSongRemove != null,
+              onRemove: () => onSongRemove?.call(song),
               onOpenPlayer: onOpenPlayer,
             ),
           ),
@@ -1735,6 +2012,8 @@ class _AlbumSongRow extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback onFavoriteToggle;
   final VoidCallback onAddToAlbum;
+  final bool canRemove;
+  final VoidCallback onRemove;
   final VoidCallback onOpenPlayer;
 
   const _AlbumSongRow({
@@ -1746,6 +2025,8 @@ class _AlbumSongRow extends StatelessWidget {
     required this.onTap,
     required this.onFavoriteToggle,
     required this.onAddToAlbum,
+    required this.canRemove,
+    required this.onRemove,
     required this.onOpenPlayer,
   });
 
@@ -1833,27 +2114,38 @@ class _AlbumSongRow extends StatelessWidget {
                     case _AlbumSongAction.addToAlbum:
                       onAddToAlbum();
                       break;
+                    case _AlbumSongAction.removeFromAlbum:
+                      onRemove();
+                      break;
                     case _AlbumSongAction.openPlayer:
                       onOpenPlayer();
                       break;
                   }
                 },
-                itemBuilder: (context) => const [
-                  PopupMenuItem<_AlbumSongAction>(
+                itemBuilder: (context) => [
+                  const PopupMenuItem<_AlbumSongAction>(
                     value: _AlbumSongAction.play,
                     child: Text(
                       'Phát bài này',
                       style: TextStyle(color: AppColors.text),
                     ),
                   ),
-                  PopupMenuItem<_AlbumSongAction>(
+                  const PopupMenuItem<_AlbumSongAction>(
                     value: _AlbumSongAction.addToAlbum,
                     child: Text(
                       'Thêm vào album cá nhân',
                       style: TextStyle(color: AppColors.text),
                     ),
                   ),
-                  PopupMenuItem<_AlbumSongAction>(
+                  if (canRemove)
+                    const PopupMenuItem<_AlbumSongAction>(
+                      value: _AlbumSongAction.removeFromAlbum,
+                      child: Text(
+                        'Xóa khỏi album này',
+                        style: TextStyle(color: AppColors.pink),
+                      ),
+                    ),
+                  const PopupMenuItem<_AlbumSongAction>(
                     value: _AlbumSongAction.openPlayer,
                     child: Text(
                       'Mở trình phát',
@@ -1899,6 +2191,17 @@ String _albumCoverUrl(Playlist album) {
   final coverUrl = album.coverUrl.trim();
   if (coverUrl.isNotEmpty) {
     return coverUrl;
+  }
+
+  const personalAlbumCovers = <String, String>{
+    'fan bray': 'https://i.ytimg.com/vi/tcV47TTTU_U/hqdefault.jpg',
+    'diss nyc': 'https://i.ytimg.com/vi/mdd9FENKmDk/hqdefault.jpg',
+    'ếch và báo': 'https://i.ytimg.com/vi/Humu5wAysrc/hqdefault.jpg',
+    'socola kẹo mút': 'https://i.ytimg.com/vi/UGICe53lQjQ/hqdefault.jpg',
+  };
+  final namedCover = personalAlbumCovers[album.title.trim().toLowerCase()];
+  if (namedCover != null) {
+    return namedCover;
   }
 
   for (final song in album.songs) {
@@ -2157,7 +2460,7 @@ class AlbumCard extends StatelessWidget {
                 fit: StackFit.expand,
                 children: [
                   CoverImage(
-                    url: album.coverUrl,
+                    url: _albumCoverUrl(album),
                     size: double.infinity,
                     radius: 8,
                   ),

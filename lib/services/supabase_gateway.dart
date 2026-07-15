@@ -83,6 +83,14 @@ class SupabaseGateway {
     );
   }
 
+  Future<void> deleteObject({
+    required String bucket,
+    required String objectPath,
+  }) async {
+    final client = await requireClient();
+    await client.storage.from(bucket).remove([objectPath]);
+  }
+
   Future<SupabaseClient?> _initializeConfigured() async {
     try {
       final supabase = await Supabase.initialize(

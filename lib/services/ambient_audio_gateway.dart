@@ -194,7 +194,7 @@ class AmbientAudioGateway extends ChangeNotifier {
       }
 
       await player.setVolume(layer.volume * _masterVolume);
-      await player.play();
+      unawaited(_playLayer(player, layer));
     } catch (error) {
       _errorMessage = 'Ambient error: $error';
       final failed = layer.copyWith(active: false);
@@ -203,6 +203,17 @@ class AmbientAudioGateway extends ChangeNotifier {
     } finally {
       _loadingIds.remove(layer.id);
       notifyListeners();
+    }
+  }
+
+  Future<void> _playLayer(AudioPlayer player, AmbientLayer layer) async {
+    try {
+      await player.play();
+    } catch (error) {
+      _errorMessage = 'Ambient error: $error';
+      final failed = _layerById(layer.id).copyWith(active: false);
+      _replaceLayer(failed);
+      await _persistLayer(failed);
     }
   }
 

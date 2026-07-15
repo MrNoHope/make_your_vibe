@@ -34,7 +34,7 @@ class UploadedSongInput {
 
   const UploadedSongInput({
     required this.title,
-    required this.artist,
+    this.artist = '',
     required this.fileName,
     required this.audioBytes,
     this.albumId = '',
@@ -495,6 +495,58 @@ class LibraryGateway {
     );
   }
 
+  Future<void> removeSongFromAlbum({
+    required Song song,
+    required String albumId,
+  }) async {
+    final user = _requireUser();
+    final cleanAlbumId = albumId.trim();
+    if (cleanAlbumId.isEmpty) {
+      throw const LibraryGatewayException('Album is required.');
+    }
+
+    final songId = await _resolveSongDocId(
+      ownerId: user.uid,
+      songId: song.storedId,
+    );
+    await _firebaseRequest(
+      _albumItemsRef(user.uid, cleanAlbumId).doc(songId).delete(),
+    );
+  }
+
+  Future<void> deleteUploadedSong(Song song) async {
+    final user = _requireUser();
+    final songId = await _resolveSongDocId(
+      ownerId: user.uid,
+      songId: song.storedId,
+    );
+    final songRef = _songsRef(user.uid).doc(songId);
+    final songDoc = await _firebaseRequest(songRef.get(_serverGet));
+    if (!songDoc.exists) {
+      throw const LibraryGatewayException('Song not found.');
+    }
+
+    final data = songDoc.data() ?? const <String, dynamic>{};
+    if (_string(data['sourceType']) != _sourceUpload) {
+      throw const LibraryGatewayException(
+        'Only uploaded songs can be deleted.',
+      );
+    }
+
+    final albumSnapshot = await _firebaseRequest(
+      _albumsRef(user.uid).get(_serverGet),
+    );
+    final batch = _firestore.batch();
+    for (final albumDoc in albumSnapshot.docs) {
+      batch.delete(_albumItemsRef(user.uid, albumDoc.id).doc(songId));
+    }
+    batch.delete(songRef);
+    await _firebaseRequest(batch.commit());
+
+    await _deleteStoredFile(_string(data['audioPath']));
+    await _deleteStoredFile(_string(data['coverPath']));
+  }
+
   Future<Song> saveSongToAlbum({
     required Song song,
     required String albumId,
@@ -796,6 +848,28 @@ class LibraryGateway {
       throw LibraryGatewayException(
         'Supabase Storage loi: ${error.message}',
       );
+    }
+  }
+
+  Future<void> _deleteStoredFile(String storedPath) async {
+    final cleanPath = storedPath.trim();
+    final separator = cleanPath.indexOf('/');
+    if (separator <= 0 || cleanPath.startsWith('shared:')) {
+      return;
+    }
+
+    final bucket = cleanPath.substring(0, separator);
+    final objectPath = cleanPath.substring(separator + 1);
+    if (objectPath.isEmpty) {
+      return;
+    }
+
+    try {
+      await _supabase
+          .deleteObject(bucket: bucket, objectPath: objectPath)
+          .timeout(const Duration(seconds: 12));
+    } catch (_) {
+      // Firestore is already cleaned up; an orphaned storage file is harmless.
     }
   }
 
