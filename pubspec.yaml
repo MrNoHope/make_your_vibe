@@ -1,0 +1,42 @@
+name: make_your_vibe_v2
+description: Make Your Vibe V2, developed from the existing Plus version.
+publish_to: 'none'
+version: 1.4.0+140
+
+environment:
+  sdk: '>=3.6.0 <4.0.0'
+  flutter: '>=3.27.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: 1.0.8
+  just_audio: 0.10.5
+  audio_service: 0.18.19
+  audio_session: 0.2.3
+  youtube_explode_dart: 3.1.0
+  shared_preferences: 2.5.3
+  file_picker: 11.0.2
+  path_provider: 2.1.5
+  path: 1.9.1
+  share_plus: 10.1.4
+  http: 1.2.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: 4.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/audio/ambient/cricket_sound.mp3
+    - assets/audio/ambient/hard_fire.mp3
+    - assets/audio/ambient/hard_rain.mp3
+    - assets/audio/ambient/night_cricket_sound.mp3
+    - assets/audio/ambient/ocean_waves.mp3
+    - assets/audio/ambient/ocean_waves_smooth.mp3
+    - assets/audio/ambient/smooth_brown_noise.mp3
+    - assets/audio/ambient/soft_brown_noise.mp3
+    - assets/audio/ambient/soft_fire.mp3
+    - assets/audio/ambient/soft_rain.mp3
