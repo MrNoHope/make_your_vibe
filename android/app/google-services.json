@@ -1,47 +1,47 @@
 {
-  "project_info": {
-    "project_number": "194875375112",
-    "project_id": "make-your-vibe",
-    "storage_bucket": "make-your-vibe.firebasestorage.app"
-  },
-  "client": [
-    {
-      "client_info": {
-        "mobilesdk_app_id": "1:194875375112:android:ac06de8c3f60e8bbdf1bbd",
-        "android_client_info": {
-          "package_name": "com.makeyourvibe.app"
-        }
-      },
-      "oauth_client": [
-        {
-          "client_id": "194875375112-52vhur6be0hnnancfn8rn3rmrtk0oscp.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.makeyourvibe.app",
-            "certificate_hash": "618651de0f427e71b83d1420d88a9313f668c602"
-          }
-        },
-        {
-          "client_id": "194875375112-9u34urjv890d7onio46gjhgid764nl2k.apps.googleusercontent.com",
-          "client_type": 3
-        }
-      ],
-      "api_key": [
-        {
-          "current_key": "AIzaSyBRnWhCrgEH57vbT9nrYnsAaQxRO-Bc-Hk"
-        }
-      ],
-      "services": {
-        "appinvite_service": {
-          "other_platform_oauth_client": [
-            {
-              "client_id": "194875375112-9u34urjv890d7onio46gjhgid764nl2k.apps.googleusercontent.com",
-              "client_type": 3
-            }
-          ]
-        }
-      }
-    }
-  ],
-  "configuration_version": "1"
+    "project_info":  {
+                         "project_number":  "194875375112",
+                         "project_id":  "make-your-vibe",
+                         "storage_bucket":  "make-your-vibe.firebasestorage.app"
+                     },
+    "client":  [
+                   {
+                       "client_info":  {
+                                           "mobilesdk_app_id":  "1:194875375112:android:ac06de8c3f60e8bbdf1bbd",
+                                           "android_client_info":  {
+                                                                       "package_name":  "com.makeyourvibe.app"
+                                                                   }
+                                       },
+                       "oauth_client":  [
+                                            {
+                                                "client_id":  "194875375112-52vhur6be0hnnancfn8rn3rmrtk0oscp.apps.googleusercontent.com",
+                                                "client_type":  1,
+                                                "android_info":  {
+                                                                     "package_name":  "com.makeyourvibe.app",
+                                                                     "certificate_hash":  "618651de0f427e71b83d1420d88a9313f668c602"
+                                                                 }
+                                            },
+                                            {
+                                                "client_id":  "194875375112-9u34urjv890d7onio46gjhgid764nl2k.apps.googleusercontent.com",
+                                                "client_type":  3
+                                            }
+                                        ],
+                       "api_key":  [
+                                       {
+                                           "current_key":  "AIzaSyBRnWhCrgEH57vbT9nrYnsAaQxRO-Bc-Hk"
+                                       }
+                                   ],
+                       "services":  {
+                                        "appinvite_service":  {
+                                                                  "other_platform_oauth_client":  [
+                                                                                                      {
+                                                                                                          "client_id":  "194875375112-9u34urjv890d7onio46gjhgid764nl2k.apps.googleusercontent.com",
+                                                                                                          "client_type":  3
+                                                                                                      }
+                                                                                                  ]
+                                                              }
+                                    }
+                   }
+               ],
+    "configuration_version":  "1"
 }

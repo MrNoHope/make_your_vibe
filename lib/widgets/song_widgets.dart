@@ -13,6 +13,8 @@ class SongTile extends StatelessWidget {
   final VoidCallback? onToggle;
   final VoidCallback? onOpen;
   final VoidCallback? onAddToAlbum;
+  final bool favorite;
+  final VoidCallback? onToggleFavorite;
 
   const SongTile({
     super.key,
@@ -24,6 +26,8 @@ class SongTile extends StatelessWidget {
     this.onToggle,
     this.onOpen,
     this.onAddToAlbum,
+    this.favorite = false,
+    this.onToggleFavorite,
   });
 
   @override
@@ -78,6 +82,15 @@ class SongTile extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 8),
+            if (onToggleFavorite != null)
+              _SongControlButton(
+                tooltip: favorite ? 'Bỏ yêu thích' : 'Thêm vào yêu thích',
+                icon: favorite
+                    ? Icons.favorite_rounded
+                    : Icons.favorite_border_rounded,
+                color: favorite ? AppColors.green2 : Colors.white,
+                onPressed: onToggleFavorite,
+              ),
             if (onAddToAlbum != null)
               _SongControlButton(
                 tooltip: 'Thêm vào album',
@@ -116,6 +129,8 @@ class SongList extends StatelessWidget {
   final VoidCallback? onActiveToggle;
   final VoidCallback? onActiveOpen;
   final ValueChanged<Song>? onSongAddToAlbum;
+  final bool Function(Song song)? isSongFavorite;
+  final ValueChanged<Song>? onSongFavoriteToggle;
 
   const SongList({
     super.key,
@@ -127,6 +142,8 @@ class SongList extends StatelessWidget {
     this.onActiveToggle,
     this.onActiveOpen,
     this.onSongAddToAlbum,
+    this.isSongFavorite,
+    this.onSongFavoriteToggle,
   });
 
   @override
@@ -143,6 +160,7 @@ class SongList extends StatelessWidget {
       children: songs.map((song) {
         final active = song.id == activeId;
         final canAddToAlbum = onSongAddToAlbum != null;
+        final canFavorite = onSongFavoriteToggle != null;
 
         return Padding(
           padding: const EdgeInsets.only(bottom: 10),
@@ -155,6 +173,9 @@ class SongList extends StatelessWidget {
             onToggle: active ? onActiveToggle : null,
             onOpen: active ? onActiveOpen : null,
             onAddToAlbum: canAddToAlbum ? () => onSongAddToAlbum!(song) : null,
+            favorite: isSongFavorite?.call(song) ?? false,
+            onToggleFavorite:
+                canFavorite ? () => onSongFavoriteToggle!(song) : null,
           ),
         );
       }).toList(),
@@ -208,12 +229,14 @@ class _SongControlButton extends StatelessWidget {
   final IconData icon;
   final double iconSize;
   final VoidCallback? onPressed;
+  final Color? color;
 
   const _SongControlButton({
     required this.tooltip,
     required this.icon,
     required this.onPressed,
     this.iconSize = 24,
+    this.color,
   });
 
   @override
@@ -227,7 +250,7 @@ class _SongControlButton extends StatelessWidget {
         onPressed: onPressed,
         icon: Icon(
           icon,
-          color: onPressed == null ? AppColors.muted : Colors.white,
+          color: onPressed == null ? AppColors.muted : color ?? Colors.white,
           size: iconSize,
         ),
       ),

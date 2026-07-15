@@ -14,6 +14,11 @@ class SideRail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final iconColor = isDark ? AppColors.soft : AppColors.lightSoft;
+    final mutedColor = isDark ? AppColors.muted : AppColors.lightMuted;
+    final lineColor = isDark ? AppColors.line : AppColors.lightLine;
     final items = [
       _RailItem(Icons.home_rounded, 'Music'),
       _RailItem(Icons.tune_rounded, 'Sound'),
@@ -24,7 +29,7 @@ class SideRail extends StatelessWidget {
 
     return Container(
       width: 54,
-      color: AppColors.background,
+      color: theme.scaffoldBackgroundColor,
       child: Column(
         children: [
           const SizedBox(height: 20),
@@ -49,7 +54,7 @@ class SideRail extends StatelessWidget {
                     ),
                     child: Icon(
                       item.icon,
-                      color: selected ? Colors.black : AppColors.soft,
+                      color: selected ? Colors.black : iconColor,
                       size: 19,
                     ),
                   ),
@@ -62,13 +67,13 @@ class SideRail extends StatelessWidget {
             width: 32,
             height: 32,
             decoration: BoxDecoration(
-              border: Border.all(color: AppColors.line),
+              border: Border.all(color: lineColor),
               shape: BoxShape.circle,
             ),
-            child: const Icon(
+            child: Icon(
               Icons.cloud_off_rounded,
               size: 17,
-              color: AppColors.muted,
+              color: mutedColor,
             ),
           ),
           const SizedBox(height: 12),

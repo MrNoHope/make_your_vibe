@@ -7,7 +7,9 @@ import '../../models/playlist.dart';
 import '../../models/song.dart';
 import '../../models/system_album.dart';
 import '../../services/library_gateway.dart';
+import '../../widgets/album_share_dialog.dart';
 import '../../widgets/common_widgets.dart';
+import '../../widgets/mini_player.dart';
 import '../../widgets/song_widgets.dart';
 
 class HomePage extends StatefulWidget {
@@ -32,12 +34,21 @@ class _HomePageState extends State<HomePage> {
 
   List<_AlbumShelfData> get _albumShelves => [
         _AlbumShelfData(
-          title: 'Noi bat',
+          title: 'Nổi bật',
           albums: _albumsByIds([
             'thien-ha',
             'top-100',
             'rap-viet',
             'son-tung',
+          ]),
+        ),
+        _AlbumShelfData(
+          title: 'Album phát hành',
+          albums: _albumsByIds([
+            'cho-bao',
+            'danh-doi',
+            'mck-99',
+            'acpbdtdd',
           ]),
         ),
         _AlbumShelfData(
@@ -99,6 +110,10 @@ class _HomePageState extends State<HomePage> {
                     await widget.controller.playSong(
                       song,
                       queue: widget.controller.listeningHistory,
+                      context: const PlayContextInfo(
+                        type: PlayOriginType.playlist,
+                        title: 'Nghe gần đây',
+                      ),
                     );
                     if (mounted) {
                       widget.onOpenPlayer();
@@ -134,6 +149,10 @@ class _HomePageState extends State<HomePage> {
                     await widget.controller.playSong(
                       song,
                       queue: widget.controller.homeSongs,
+                      context: const PlayContextInfo(
+                        type: PlayOriginType.playlist,
+                        title: 'Make Your Vibe',
+                      ),
                     );
                     if (mounted) {
                       widget.onOpenPlayer();
@@ -142,6 +161,8 @@ class _HomePageState extends State<HomePage> {
                   onActiveToggle: widget.controller.togglePlay,
                   onActiveOpen: widget.onOpenPlayer,
                   onSongAddToAlbum: showAddToPersonalAlbumDialog,
+                  isSongFavorite: widget.controller.isFavoriteSong,
+                  onSongFavoriteToggle: widget.controller.toggleFavoriteSong,
                 ),
               if (widget.controller.errorMessage.isNotEmpty) ...[
                 const SizedBox(height: 12),
@@ -171,7 +192,7 @@ class _HomePageState extends State<HomePage> {
       });
 
       try {
-        songs = await widget.controller.music.searchTracks(album.query);
+        songs = await loadFeaturedAlbumSongs(album);
         _albumCache[album.id] = songs;
       } catch (error) {
         showSnack('Không tải được album: $error');
@@ -189,86 +210,73 @@ class _HomePageState extends State<HomePage> {
       return;
     }
 
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: AppColors.card,
-      isScrollControlled: true,
-      builder: (sheetContext) {
-        void openPlayerFromSheet() {
-          Navigator.of(sheetContext).pop();
-          if (mounted) {
-            widget.onOpenPlayer();
-          }
-        }
-
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 18),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    CoverImage(
-                      url: album.coverUrl,
-                      size: 58,
-                      radius: 8,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            album.title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 19,
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                          const SizedBox(height: 3),
-                          Text(
-                            album.subtitle,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(color: AppColors.soft),
-                          ),
-                        ],
-                      ),
-                    ),
-                    IconButton(
-                      onPressed: () => Navigator.of(sheetContext).pop(),
-                      icon: const Icon(Icons.close_rounded),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                Flexible(
-                  child: SingleChildScrollView(
-                    child: SongList(
-                      songs: songs!,
-                      activeId: widget.controller.currentSong?.id,
-                      activePlaying: widget.controller.isPlaying,
-                      activeBusy: widget.controller.resolving,
-                      onSongTap: (song) async {
-                        await widget.controller.playSong(song, queue: songs);
-                        openPlayerFromSheet();
-                      },
-                      onActiveToggle: widget.controller.togglePlay,
-                      onActiveOpen: openPlayerFromSheet,
-                      onSongAddToAlbum: showAddToPersonalAlbumDialog,
-                    ),
-                  ),
-                ),
-              ],
-            ),
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => _HomeAlbumDetailScreen(
+          album: Playlist(
+            id: 'home-${album.id}',
+            title: album.title,
+            subtitle: album.subtitle,
+            coverUrl: album.coverUrl,
+            songs: songs!,
           ),
-        );
-      },
+          controller: widget.controller,
+          onOpenPlayer: widget.onOpenPlayer,
+          onSongAddToAlbum: showAddToPersonalAlbumDialog,
+        ),
+      ),
     );
+  }
+
+  Future<List<Song>> loadFeaturedAlbumSongs(SystemAlbum album) async {
+    if (album.trackQueries.isEmpty) {
+      final results = await widget.controller.music.searchTracks(album.query);
+      return results.take(12).toList(growable: false);
+    }
+
+    final songs = await Future.wait(
+      album.trackQueries.map(searchFeaturedSong),
+    );
+    final loadedSongs = <Song>[];
+    final seenIds = <String>{};
+
+    for (final song in songs.whereType<Song>()) {
+      final key = song.sourceId.trim().isEmpty ? song.id : song.sourceId;
+      if (seenIds.add(key)) {
+        loadedSongs.add(song);
+      }
+    }
+
+    if (loadedSongs.isNotEmpty) {
+      return loadedSongs;
+    }
+
+    final results = await widget.controller.music.searchTracks(album.query);
+    return results.take(12).toList(growable: false);
+  }
+
+  Future<Song?> searchFeaturedSong(String query) async {
+    try {
+      final results = await widget.controller.music.searchTracks(query);
+      if (results.isEmpty) {
+        return null;
+      }
+
+      for (final song in results) {
+        if (_looksLikeSingleTrack(song)) {
+          return song;
+        }
+      }
+
+      return results.first;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  bool _looksLikeSingleTrack(Song song) {
+    final duration = song.duration;
+    return duration > Duration.zero && duration <= const Duration(minutes: 9);
   }
 
   Future<void> showAddToPersonalAlbumDialog(Song song) async {
@@ -619,6 +627,437 @@ class _AlbumShelfData {
     required this.title,
     required this.albums,
   });
+}
+
+class _HomeAlbumDetailScreen extends StatefulWidget {
+  final Playlist album;
+  final VibeController controller;
+  final VoidCallback onOpenPlayer;
+  final ValueChanged<Song> onSongAddToAlbum;
+
+  const _HomeAlbumDetailScreen({
+    required this.album,
+    required this.controller,
+    required this.onOpenPlayer,
+    required this.onSongAddToAlbum,
+  });
+
+  @override
+  State<_HomeAlbumDetailScreen> createState() => _HomeAlbumDetailScreenState();
+}
+
+class _HomeAlbumDetailScreenState extends State<_HomeAlbumDetailScreen> {
+  void playAlbum() {
+    final album = widget.album;
+    if (album.songs.isEmpty) {
+      return;
+    }
+
+    if (_homeAlbumContainsCurrentSong(album, widget.controller)) {
+      widget.controller.togglePlay();
+      return;
+    }
+
+    widget.controller.playSong(
+      album.songs.first,
+      queue: album.songs,
+      context: PlayContextInfo(
+        type: PlayOriginType.album,
+        title: album.title,
+      ),
+    );
+  }
+
+  Future<void> playSong(Song song) async {
+    await widget.controller.playSong(
+      song,
+      queue: widget.album.songs,
+      context: PlayContextInfo(
+        type: PlayOriginType.album,
+        title: widget.album.title,
+      ),
+    );
+  }
+
+  Future<void> shareAlbum() async {
+    try {
+      showSnack('Đang tạo mã share...');
+      final code = await libraryGateway.sharePlaylist(widget.album);
+      if (!mounted) return;
+
+      await showAlbumShareDialog(
+        context: context,
+        album: widget.album,
+        code: code,
+        title: 'Mã share album',
+        codeLabel: 'Mã share',
+        savedMessage: 'Đã lưu ảnh mã share.',
+        shareText: 'Nghe album "${widget.album.title}" trên '
+            'Make Your Vibe.\nMã share: $code',
+        subject: 'Make Your Vibe - ${widget.album.title}',
+        onStopSharing: () => libraryGateway.stopSharingAlbum(code),
+        stopMessage: 'Đã ngừng chia sẻ. Người đã lưu vẫn nghe được.',
+      );
+    } catch (error) {
+      showSnack('$error');
+    }
+  }
+
+  void showSnack(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          children: [
+            Expanded(
+              child: AnimatedBuilder(
+                animation: widget.controller,
+                builder: (context, _) {
+                  final activeInAlbum = _homeAlbumContainsCurrentSong(
+                    widget.album,
+                    widget.controller,
+                  );
+
+                  return ListView(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                    children: [
+                      Row(
+                        children: [
+                          IconButton(
+                            tooltip: 'Quay lại',
+                            onPressed: () => Navigator.of(context).maybePop(),
+                            icon: const Icon(Icons.arrow_back_rounded),
+                          ),
+                          const Spacer(),
+                          IconButton(
+                            tooltip: widget.controller.isFavoriteAlbum(
+                              widget.album,
+                            )
+                                ? 'Bỏ yêu thích album'
+                                : 'Yêu thích album',
+                            onPressed: () => widget.controller
+                                .toggleFavoriteAlbum(widget.album),
+                            icon: Icon(
+                              widget.controller.isFavoriteAlbum(widget.album)
+                                  ? Icons.favorite_rounded
+                                  : Icons.favorite_border_rounded,
+                              color: widget.controller.isFavoriteAlbum(
+                                widget.album,
+                              )
+                                  ? AppColors.green
+                                  : null,
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: 'Chia sẻ album',
+                            onPressed: shareAlbum,
+                            icon: const Icon(Icons.ios_share_rounded),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      _HomeAlbumCover(album: widget.album),
+                      const SizedBox(height: 18),
+                      Text(
+                        widget.album.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.w900,
+                          height: 1.08,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      _HomeAlbumCreatorLine(album: widget.album),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Album • ${widget.album.songs.length} bài hát',
+                        style: const TextStyle(
+                          color: AppColors.soft,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+                      _HomeAlbumControlRow(
+                        album: widget.album,
+                        controller: widget.controller,
+                        activeInAlbum: activeInAlbum,
+                        onPlayAlbum: playAlbum,
+                      ),
+                      const SizedBox(height: 18),
+                      if (widget.album.songs.isEmpty)
+                        const BackendNotice(
+                          icon: Icons.music_note_rounded,
+                          title: 'Album trống',
+                          message: 'Không tải được bài hát cho album này.',
+                        )
+                      else
+                        SongList(
+                          songs: widget.album.songs,
+                          activeId: widget.controller.currentSong?.id,
+                          activePlaying: widget.controller.isPlaying,
+                          activeBusy: widget.controller.resolving,
+                          onSongTap: playSong,
+                          onActiveToggle: widget.controller.togglePlay,
+                          onActiveOpen: widget.onOpenPlayer,
+                          onSongAddToAlbum: widget.onSongAddToAlbum,
+                          isSongFavorite: widget.controller.isFavoriteSong,
+                          onSongFavoriteToggle:
+                              widget.controller.toggleFavoriteSong,
+                        ),
+                    ],
+                  );
+                },
+              ),
+            ),
+            MiniPlayerBar(
+              controller: widget.controller,
+              onTap: widget.onOpenPlayer,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _HomeAlbumCover extends StatelessWidget {
+  final Playlist album;
+
+  const _HomeAlbumCover({required this.album});
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final size = (constraints.maxWidth * 0.64).clamp(184.0, 236.0);
+
+        return Center(
+          child: CoverImage(
+            url: album.coverUrl,
+            size: size.toDouble(),
+            radius: 4,
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _HomeAlbumCreatorLine extends StatelessWidget {
+  final Playlist album;
+
+  const _HomeAlbumCreatorLine({required this.album});
+
+  @override
+  Widget build(BuildContext context) {
+    final covers = album.songs
+        .map((song) => song.coverUrl.trim())
+        .where((url) => url.isNotEmpty)
+        .take(2)
+        .toList();
+
+    return Row(
+      children: [
+        SizedBox(
+          width: covers.length > 1 ? 32 : 20,
+          height: 20,
+          child: Stack(
+            children: [
+              if (covers.isEmpty)
+                const CircleAvatar(
+                  radius: 10,
+                  backgroundColor: AppColors.panel2,
+                  child: Icon(
+                    Icons.music_note_rounded,
+                    color: AppColors.green,
+                    size: 12,
+                  ),
+                )
+              else
+                for (var index = 0; index < covers.length; index += 1)
+                  Positioned(
+                    left: index * 12,
+                    child: ClipOval(
+                      child: CoverImage(
+                        url: covers[index],
+                        size: 20,
+                        radius: 99,
+                      ),
+                    ),
+                  ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            _homeAlbumSubtitle(album),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _HomeAlbumControlRow extends StatelessWidget {
+  final Playlist album;
+  final VibeController controller;
+  final bool activeInAlbum;
+  final VoidCallback onPlayAlbum;
+
+  const _HomeAlbumControlRow({
+    required this.album,
+    required this.controller,
+    required this.activeInAlbum,
+    required this.onPlayAlbum,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final canPlay = album.songs.isNotEmpty;
+
+    return Row(
+      children: [
+        CoverImage(
+          url: album.coverUrl,
+          size: 38,
+          radius: 4,
+        ),
+        const SizedBox(width: 14),
+        Tooltip(
+          message: 'Album cố định',
+          child: Container(
+            width: 22,
+            height: 22,
+            decoration: const BoxDecoration(
+              color: AppColors.green,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.check_rounded,
+              color: Colors.black,
+              size: 15,
+            ),
+          ),
+        ),
+        const Spacer(),
+        Tooltip(
+          message: 'Phát xen kẽ',
+          child: IconButton(
+            onPressed: controller.toggleShuffle,
+            icon: Icon(
+              Icons.shuffle_rounded,
+              color:
+                  controller.shuffleEnabled ? AppColors.green : AppColors.soft,
+              size: 26,
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        _HomeAlbumPlayButton(
+          enabled: canPlay,
+          activeInAlbum: activeInAlbum,
+          playing: controller.isPlaying,
+          busy: controller.resolving && activeInAlbum,
+          onPressed: onPlayAlbum,
+        ),
+      ],
+    );
+  }
+}
+
+class _HomeAlbumPlayButton extends StatelessWidget {
+  final bool enabled;
+  final bool activeInAlbum;
+  final bool playing;
+  final bool busy;
+  final VoidCallback onPressed;
+
+  const _HomeAlbumPlayButton({
+    required this.enabled,
+    required this.activeInAlbum,
+    required this.playing,
+    required this.busy,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final icon = busy
+        ? Icons.hourglass_top_rounded
+        : activeInAlbum && playing
+            ? Icons.pause_rounded
+            : Icons.play_arrow_rounded;
+
+    return Tooltip(
+      message: activeInAlbum && playing ? 'Tạm dừng' : 'Phát album',
+      child: InkWell(
+        onTap: enabled && !busy ? onPressed : null,
+        customBorder: const CircleBorder(),
+        child: Container(
+          width: 58,
+          height: 58,
+          decoration: BoxDecoration(
+            color: enabled ? AppColors.green : AppColors.muted,
+            shape: BoxShape.circle,
+          ),
+          child: Icon(
+            icon,
+            color: Colors.black,
+            size: 34,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+String _homeAlbumSubtitle(Playlist album) {
+  final subtitle = album.subtitle.trim();
+  if (subtitle.isNotEmpty) {
+    return subtitle;
+  }
+
+  final artists = <String>{};
+  for (final song in album.songs) {
+    final artist = song.artist.trim();
+    if (artist.isNotEmpty) {
+      artists.add(artist);
+    }
+  }
+
+  if (artists.isEmpty) {
+    return 'Make Your Vibe';
+  }
+
+  return artists.take(3).join(', ');
+}
+
+bool _homeAlbumContainsCurrentSong(Playlist album, VibeController controller) {
+  final currentId = controller.currentSong?.id;
+  if (currentId == null) {
+    return false;
+  }
+
+  return album.songs.any((song) => song.id == currentId);
 }
 
 class _FeaturedAlbumShelf extends StatelessWidget {

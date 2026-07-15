@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart' as ja;
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../models/playlist.dart';
 import '../models/song.dart';
 import '../services/audio_gateway.dart';
 import '../services/music_gateway.dart';
@@ -15,6 +17,26 @@ enum VibeRepeatMode {
   songOnce,
 }
 
+enum PlayOriginType {
+  none,
+  search,
+  album,
+  playlist,
+  library,
+}
+
+class PlayContextInfo {
+  final PlayOriginType type;
+  final String title;
+
+  const PlayContextInfo({
+    this.type = PlayOriginType.none,
+    this.title = '',
+  });
+
+  bool get hasTitle => title.trim().isNotEmpty;
+}
+
 class VibeController extends ChangeNotifier {
   final MusicGateway music = musicGateway;
   final AudioGateway audio = audioGateway;
@@ -22,6 +44,8 @@ class VibeController extends ChangeNotifier {
   static const _lastSongKey = 'make_your_vibe.last_song';
   static const _listeningHistoryKey = 'make_your_vibe.listening_history';
   static const _searchHistoryKey = 'make_your_vibe.search_history';
+  static const _favoriteSongsKey = 'make_your_vibe.favorite_songs';
+  static const _favoriteAlbumsKey = 'make_your_vibe.favorite_albums';
   static const _maxListeningHistory = 24;
   static const _maxSearchHistory = 16;
 
@@ -30,6 +54,8 @@ class VibeController extends ChangeNotifier {
   List<Song> searchResults = [];
   List<Song> activeQueue = [];
   List<Song> listeningHistory = [];
+  List<Song> favoriteSongs = [];
+  List<Playlist> favoriteAlbums = [];
   List<String> searchHistory = [];
 
   Duration position = Duration.zero;
@@ -42,9 +68,14 @@ class VibeController extends ChangeNotifier {
   bool _playRequested = false;
   bool _repeatOnceUsed = false;
   bool _seeking = false;
+  bool shuffleEnabled = false;
   int currentIndex = 0;
   String errorMessage = '';
+  PlayContextInfo playContext = const PlayContextInfo();
   VibeRepeatMode repeatMode = VibeRepeatMode.off;
+  final Random _random = Random();
+  final List<int> _shuffleRemaining = [];
+  String _activeQueueSignature = '';
 
   StreamSubscription<ja.PlayerState>? _audioStateSub;
   StreamSubscription<Duration>? _audioPositionSub;
@@ -102,7 +133,8 @@ class VibeController extends ChangeNotifier {
 
     try {
       homeSongs = await music.getHomeTracks();
-      activeQueue = homeSongs;
+      _setActiveQueue(homeSongs);
+      currentIndex = 0;
     } catch (error) {
       errorMessage = 'Khong tai duoc nhac: $error';
     }
@@ -126,7 +158,8 @@ class VibeController extends ChangeNotifier {
 
     try {
       searchResults = await music.searchTracks(query);
-      activeQueue = searchResults;
+      _setActiveQueue(searchResults);
+      currentIndex = 0;
       unawaited(_addSearchHistory(query));
     } catch (error) {
       errorMessage = 'Search loi: $error';
@@ -143,6 +176,12 @@ class VibeController extends ChangeNotifier {
       VibeRepeatMode.songOnce => VibeRepeatMode.off,
     };
     _repeatOnceUsed = false;
+    notifyListeners();
+  }
+
+  void toggleShuffle() {
+    shuffleEnabled = !shuffleEnabled;
+    _resetShuffleCycle();
     notifyListeners();
   }
 
@@ -190,18 +229,22 @@ class VibeController extends ChangeNotifier {
   Future<void> playSong(
     Song song, {
     List<Song>? queue,
+    PlayContextInfo? context,
     bool resetRepeatOnceProgress = true,
   }) async {
     final chosenQueue = queue ?? activeQueue;
 
     if (chosenQueue.isNotEmpty) {
-      activeQueue = chosenQueue;
+      _setActiveQueue(chosenQueue);
       final foundIndex = chosenQueue.indexWhere((item) => item.id == song.id);
       currentIndex = foundIndex < 0 ? 0 : foundIndex;
     }
 
     resolving = true;
     errorMessage = '';
+    if (context != null) {
+      playContext = context;
+    }
     currentSong = song;
     position = Duration.zero;
     duration = song.duration == Duration.zero ? null : song.duration;
@@ -265,10 +308,30 @@ class VibeController extends ChangeNotifier {
       return;
     }
 
-    final nextIndex =
-        currentIndex + 1 >= activeQueue.length ? 0 : currentIndex + 1;
+    final nextIndex = _nextQueueIndex();
     currentIndex = nextIndex;
     await playSong(activeQueue[nextIndex], queue: activeQueue);
+  }
+
+  int _nextQueueIndex() {
+    if (!shuffleEnabled || activeQueue.length <= 1) {
+      return currentIndex + 1 >= activeQueue.length ? 0 : currentIndex + 1;
+    }
+
+    _shuffleRemaining.remove(currentIndex);
+
+    if (_shuffleRemaining.isEmpty) {
+      _shuffleRemaining
+        ..clear()
+        ..addAll(
+          List<int>.generate(activeQueue.length, (index) => index).where(
+            (index) => index != currentIndex,
+          ),
+        )
+        ..shuffle(_random);
+    }
+
+    return _shuffleRemaining.removeAt(0);
   }
 
   Future<void> previousSong() async {
@@ -284,7 +347,23 @@ class VibeController extends ChangeNotifier {
     final previousIndex =
         currentIndex - 1 < 0 ? activeQueue.length - 1 : currentIndex - 1;
     currentIndex = previousIndex;
+    _shuffleRemaining.remove(previousIndex);
     await playSong(activeQueue[previousIndex], queue: activeQueue);
+  }
+
+  void _setActiveQueue(List<Song> queue) {
+    final signature = queue.map((song) => song.id).join('|');
+
+    if (signature != _activeQueueSignature) {
+      _activeQueueSignature = signature;
+      _resetShuffleCycle();
+    }
+
+    activeQueue = queue;
+  }
+
+  void _resetShuffleCycle() {
+    _shuffleRemaining.clear();
   }
 
   Future<void> rewindTenSeconds() async {
@@ -399,7 +478,7 @@ class VibeController extends ChangeNotifier {
   Future<void> _saveLastSong(Song song) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final cached = song.copyWith(streamUrl: '');
+      final cached = _cacheableSong(song);
       await prefs.setString(_lastSongKey, jsonEncode(cached.toJson()));
     } catch (_) {}
   }
@@ -419,6 +498,89 @@ class VibeController extends ChangeNotifier {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(_listeningHistoryKey);
     } catch (_) {}
+  }
+
+  bool isFavoriteSong(Song song) {
+    final cleanId = _historySongKey(song);
+    return favoriteSongs.any((item) => _historySongKey(item) == cleanId);
+  }
+
+  Future<void> toggleFavoriteSong(Song song) async {
+    if (isFavoriteSong(song)) {
+      await removeFavoriteSong(song);
+      return;
+    }
+
+    await addFavoriteSong(song);
+  }
+
+  Future<void> addFavoriteSong(Song song) async {
+    final cached = _cacheableSong(song);
+    final cleanId = _historySongKey(cached);
+
+    favoriteSongs = [
+      cached,
+      ...favoriteSongs.where((item) => _historySongKey(item) != cleanId),
+    ];
+    notifyListeners();
+    await _saveFavoriteSongs();
+  }
+
+  Future<void> removeFavoriteSong(Song song) async {
+    final cleanId = _historySongKey(song);
+
+    favoriteSongs = favoriteSongs
+        .where((item) => _historySongKey(item) != cleanId)
+        .toList(growable: false);
+    notifyListeners();
+    await _saveFavoriteSongs();
+  }
+
+  Future<void> clearFavoriteSongs() async {
+    favoriteSongs = [];
+    notifyListeners();
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_favoriteSongsKey);
+    } catch (_) {}
+  }
+
+  bool isFavoriteAlbum(Playlist album) {
+    final cleanId = _favoriteAlbumKey(album);
+    return favoriteAlbums.any((item) => _favoriteAlbumKey(item) == cleanId);
+  }
+
+  Future<void> toggleFavoriteAlbum(Playlist album) async {
+    if (isFavoriteAlbum(album)) {
+      await removeFavoriteAlbum(album);
+      return;
+    }
+
+    await addFavoriteAlbum(album);
+  }
+
+  Future<void> addFavoriteAlbum(Playlist album) async {
+    final cached = album.copyWith(
+      songs: album.songs.map(_cacheableSong).toList(growable: false),
+    );
+    final cleanId = _favoriteAlbumKey(cached);
+
+    favoriteAlbums = [
+      cached,
+      ...favoriteAlbums.where((item) => _favoriteAlbumKey(item) != cleanId),
+    ];
+    notifyListeners();
+    await _saveFavoriteAlbums();
+  }
+
+  Future<void> removeFavoriteAlbum(Playlist album) async {
+    final cleanId = _favoriteAlbumKey(album);
+    favoriteAlbums = favoriteAlbums
+        .where((item) => _favoriteAlbumKey(item) != cleanId)
+        .toList(growable: false);
+    notifyListeners();
+    await _saveFavoriteAlbums();
   }
 
   Future<void> clearSearchHistory() async {
@@ -445,6 +607,9 @@ class VibeController extends ChangeNotifier {
       final prefs = await SharedPreferences.getInstance();
       final rawSongs = prefs.getStringList(_listeningHistoryKey) ?? const [];
       final rawSearches = prefs.getStringList(_searchHistoryKey) ?? const [];
+      final rawFavorites = prefs.getStringList(_favoriteSongsKey) ?? const [];
+      final rawFavoriteAlbums =
+          prefs.getStringList(_favoriteAlbumsKey) ?? const [];
 
       listeningHistory = rawSongs
           .map((raw) => jsonDecode(raw))
@@ -458,12 +623,25 @@ class VibeController extends ChangeNotifier {
           .where((item) => item.isNotEmpty)
           .take(_maxSearchHistory)
           .toList();
+      favoriteSongs = rawFavorites
+          .map((raw) => jsonDecode(raw))
+          .whereType<Map<String, dynamic>>()
+          .map(Song.fromJson)
+          .where((song) =>
+              song.id.trim().isNotEmpty && _isSupportedSongSource(song))
+          .toList();
+      favoriteAlbums = rawFavoriteAlbums
+          .map((raw) => jsonDecode(raw))
+          .whereType<Map<String, dynamic>>()
+          .map(Playlist.fromJson)
+          .where((album) => album.id.trim().isNotEmpty)
+          .toList();
       notifyListeners();
     } catch (_) {}
   }
 
   Future<void> _addListeningHistory(Song song) async {
-    final cached = song.copyWith(streamUrl: '');
+    final cached = _cacheableSong(song);
     final cleanId = _historySongKey(cached);
 
     listeningHistory = [
@@ -504,6 +682,42 @@ class VibeController extends ChangeNotifier {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setStringList(_searchHistoryKey, searchHistory);
     } catch (_) {}
+  }
+
+  Future<void> _saveFavoriteSongs() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList(
+        _favoriteSongsKey,
+        favoriteSongs
+            .map((item) => jsonEncode(_cacheableSong(item).toJson()))
+            .toList(growable: false),
+      );
+    } catch (_) {}
+  }
+
+  Future<void> _saveFavoriteAlbums() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList(
+        _favoriteAlbumsKey,
+        favoriteAlbums
+            .map((album) => jsonEncode(album.toJson()))
+            .toList(growable: false),
+      );
+    } catch (_) {}
+  }
+
+  String _favoriteAlbumKey(Playlist album) {
+    final shareId = album.shareId.trim();
+    if (album.isShared && shareId.isNotEmpty) {
+      return 'shared:$shareId';
+    }
+    return album.id.trim();
+  }
+
+  Song _cacheableSong(Song song) {
+    return song.sourceType == 'upload' ? song : song.copyWith(streamUrl: '');
   }
 
   String _historySongKey(Song song) {

@@ -90,7 +90,43 @@ class LibraryGateway {
           .get(_serverGet),
     );
 
-    return snapshot.docs.map(_playlistFromDoc).toList();
+    return snapshot.docs.map(_importedSharedPlaylistFromDoc).toList();
+  }
+
+  Future<Playlist> getImportedSharedAlbum(String shareCode) async {
+    final user = _requireUser();
+    final cleanCode = shareCode.trim();
+
+    if (cleanCode.isEmpty) {
+      throw const LibraryGatewayException('Share code is required.');
+    }
+
+    final importedDoc = await _firebaseRequest(
+      _userSharedAlbumsRef(user.uid).doc(cleanCode).get(_serverGet),
+    );
+    if (!importedDoc.exists) {
+      throw const LibraryGatewayException('Shared album not imported.');
+    }
+
+    final album = _importedSharedPlaylistFromDoc(importedDoc);
+    final active = await _isSharedAlbumActive(cleanCode);
+    if (active) {
+      await _incrementSharedAlbumCounter(cleanCode, 'viewCount');
+    }
+    if (active != album.shareActive) {
+      await _firebaseRequest(
+        importedDoc.reference.set({
+          'shareActive': active,
+          'canShare': active,
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true)),
+      );
+    }
+
+    return album.copyWith(
+      shareActive: active,
+      canShare: active,
+    );
   }
 
   Future<Playlist> getAlbum(String albumId) async {
@@ -151,9 +187,22 @@ class LibraryGateway {
   }
 
   Future<String> shareAlbum(String albumId) async {
-    final user = _requireUser();
     final album = await getAlbum(albumId);
+    return _sharePlaylist(album);
+  }
 
+  Future<String> sharePlaylist(Playlist album) async {
+    _requireUser();
+    return _sharePlaylist(album);
+  }
+
+  Future<String> _sharePlaylist(Playlist album) async {
+    final user = _requireUser();
+    final cleanAlbumId = album.id.trim();
+
+    if (cleanAlbumId.isEmpty) {
+      throw const LibraryGatewayException('Album is required.');
+    }
     if (album.songs.isEmpty) {
       throw const LibraryGatewayException('Album needs at least one song.');
     }
@@ -161,7 +210,7 @@ class LibraryGateway {
     final existing = await _firebaseRequest(
       _sharedAlbumsRef()
           .where('ownerId', isEqualTo: user.uid)
-          .where('albumId', isEqualTo: album.id)
+          .where('albumId', isEqualTo: cleanAlbumId)
           .limit(1)
           .get(_serverGet),
     );
@@ -173,11 +222,25 @@ class LibraryGateway {
       shareRef.set({
         'ownerId': user.uid,
         'ownerName': user.displayName ?? user.email ?? 'Make Your Vibe',
-        'albumId': album.id,
+        'albumId': cleanAlbumId,
         'title': album.title,
         'subtitle': album.subtitle,
         'coverUrl': album.coverUrl,
         'songs': album.songs.map(_songShareData).toList(growable: false),
+        'active': true,
+        'viewCount': existing.docs.isEmpty
+            ? 0
+            : _int(existing.docs.first.data()['viewCount']),
+        'importCount': existing.docs.isEmpty
+            ? 0
+            : _int(existing.docs.first.data()['importCount']),
+        'favoriteCount': existing.docs.isEmpty
+            ? 0
+            : _int(existing.docs.first.data()['favoriteCount']),
+        'inviteCount': existing.docs.isEmpty
+            ? 0
+            : _int(existing.docs.first.data()['inviteCount']),
+        'stoppedAt': FieldValue.delete(),
         'updatedAt': FieldValue.serverTimestamp(),
         if (existing.docs.isEmpty) 'createdAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true)),
@@ -188,8 +251,10 @@ class LibraryGateway {
 
   Future<Playlist> importSharedAlbum(String shareCode) async {
     final user = _requireUser();
-    final sharedAlbum = await getSharedAlbum(shareCode);
+    final resolved = await _resolveSharedAlbumCode(shareCode);
+    final sharedAlbum = _sharedPlaylistFromDoc(resolved.doc);
     final docRef = _userSharedAlbumsRef(user.uid).doc(sharedAlbum.id);
+    final existingImport = await _firebaseRequest(docRef.get(_serverGet));
 
     await _firebaseRequest(
       docRef.set({
@@ -197,31 +262,112 @@ class LibraryGateway {
         'subtitle': sharedAlbum.subtitle,
         'coverUrl': sharedAlbum.coverUrl,
         'shareId': sharedAlbum.id,
-        'addedAt': FieldValue.serverTimestamp(),
+        'ownerId': _string(resolved.doc.data()?['ownerId']),
+        'ownerName': _string(resolved.doc.data()?['ownerName']),
+        'songs': sharedAlbum.songs.map(_songShareData).toList(growable: false),
+        'shareActive': true,
+        'canShare': true,
+        if (resolved.inviteId.isNotEmpty) 'sourceInviteId': resolved.inviteId,
+        if (!existingImport.exists) 'addedAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true)),
     );
+
+    await _incrementSharedAlbumCounter(sharedAlbum.id, 'viewCount');
+    if (!existingImport.exists) {
+      await _incrementSharedAlbumCounter(sharedAlbum.id, 'importCount');
+      await _incrementSharedAlbumCounter(sharedAlbum.id, 'favoriteCount');
+    }
+    if (resolved.inviteId.isNotEmpty) {
+      await _incrementInviteCounter(resolved.inviteId, 'openCount');
+    }
 
     return sharedAlbum;
   }
 
   Future<Playlist> getSharedAlbum(String shareCode) async {
+    final resolved = await _resolveSharedAlbumCode(shareCode);
+    await _incrementSharedAlbumCounter(resolved.doc.id, 'viewCount');
+    if (resolved.inviteId.isNotEmpty) {
+      await _incrementInviteCounter(resolved.inviteId, 'openCount');
+    }
+
+    return _sharedPlaylistFromDoc(resolved.doc);
+  }
+
+  Future<String> createSharedAlbumInvite(String shareCode) async {
+    final user = _requireUser();
     final cleanCode = shareCode.trim();
 
     if (cleanCode.isEmpty) {
       throw const LibraryGatewayException('Share code is required.');
     }
 
-    _requireUser();
+    final importedDoc = await _firebaseRequest(
+      _userSharedAlbumsRef(user.uid).doc(cleanCode).get(_serverGet),
+    );
+    if (!importedDoc.exists) {
+      throw const LibraryGatewayException('Shared album not imported.');
+    }
+
+    final sharedDoc = await _firebaseRequest(
+      _sharedAlbumsRef().doc(cleanCode).get(_serverGet),
+    );
+    if (!sharedDoc.exists || sharedDoc.data()?['active'] == false) {
+      await _firebaseRequest(
+        importedDoc.reference.set({
+          'shareActive': false,
+          'canShare': false,
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true)),
+      );
+      throw const LibraryGatewayException(
+        'Album này đã ngừng chia sẻ. Bạn vẫn nghe được nhưng không thể gửi mã mới.',
+      );
+    }
+
+    final inviteRef = _sharedAlbumInvitesRef().doc();
+    await _firebaseRequest(
+      inviteRef.set({
+        'shareId': cleanCode,
+        'createdBy': user.uid,
+        'createdByName': user.displayName ?? user.email ?? 'Make Your Vibe',
+        'active': true,
+        'openCount': 0,
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }),
+    );
+    await _incrementSharedAlbumCounter(cleanCode, 'inviteCount');
+
+    return inviteRef.id;
+  }
+
+  Future<void> stopSharingAlbum(String shareCode) async {
+    final user = _requireUser();
+    final cleanCode = shareCode.trim();
+
+    if (cleanCode.isEmpty) {
+      throw const LibraryGatewayException('Share code is required.');
+    }
+
     final doc = await _firebaseRequest(
       _sharedAlbumsRef().doc(cleanCode).get(_serverGet),
     );
-
     if (!doc.exists) {
       throw const LibraryGatewayException('Shared album not found.');
     }
+    if (_string(doc.data()?['ownerId']) != user.uid) {
+      throw const LibraryGatewayException('Only owner can stop sharing.');
+    }
 
-    return _sharedPlaylistFromDoc(doc);
+    await _firebaseRequest(
+      doc.reference.set({
+        'active': false,
+        'stoppedAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true)),
+    );
   }
 
   Future<Playlist> createAlbum({
@@ -349,6 +495,93 @@ class LibraryGateway {
     );
   }
 
+  Future<Song> saveSongToAlbum({
+    required Song song,
+    required String albumId,
+    String albumTitle = '',
+  }) async {
+    if (song.isOnline) {
+      return saveOnlineSongToAlbum(
+        song: song,
+        albumId: albumId,
+        albumTitle: albumTitle,
+      );
+    }
+
+    final user = _requireUser();
+    final cleanAlbumId = albumId.trim();
+    if (cleanAlbumId.isEmpty) {
+      throw const LibraryGatewayException('Album is required.');
+    }
+
+    final localId = song.databaseId.trim();
+    if (localId.isNotEmpty) {
+      final localDoc = await _firebaseRequest(
+        _songsRef(user.uid).doc(localId).get(_serverGet),
+      );
+      if (localDoc.exists) {
+        await _linkSongToAlbum(
+          ownerId: user.uid,
+          albumId: cleanAlbumId,
+          songId: localId,
+        );
+        return _songFromDoc(localDoc);
+      }
+    }
+
+    if (song.sourceType == _sourceUpload && song.streamUrl.trim().isNotEmpty) {
+      final sourceKey = song.sourceId.trim().isNotEmpty
+          ? song.sourceId.trim()
+          : song.id.trim();
+      final songRef = _songsRef(user.uid).doc(
+        _onlineDocId('shared_upload', sourceKey),
+      );
+      final existing = await _firebaseRequest(songRef.get(_serverGet));
+
+      if (!existing.exists) {
+        await _firebaseRequest(
+          songRef.set({
+            'ownerId': user.uid,
+            'title': song.title.trim().isEmpty ? 'Untitled song' : song.title,
+            'artist': song.artist.trim(),
+            'album': albumTitle.trim(),
+            'durationSeconds': song.duration.inSeconds,
+            'streamUrl': song.streamUrl.trim(),
+            'audioPath': 'shared:$sourceKey',
+            'coverUrl': song.coverUrl.trim(),
+            'coverPath': '',
+            'sourceType': _sourceUpload,
+            'sourceId': sourceKey,
+            'createdAt': FieldValue.serverTimestamp(),
+            'updatedAt': FieldValue.serverTimestamp(),
+          }),
+        );
+      }
+
+      await _linkSongToAlbum(
+        ownerId: user.uid,
+        albumId: cleanAlbumId,
+        songId: songRef.id,
+      );
+      final savedDoc = await _firebaseRequest(songRef.get(_serverGet));
+      return _songFromDoc(savedDoc);
+    }
+
+    final resolvedSongId = await _resolveSongDocId(
+      ownerId: user.uid,
+      songId: song.storedId,
+    );
+    await _linkSongToAlbum(
+      ownerId: user.uid,
+      albumId: cleanAlbumId,
+      songId: resolvedSongId,
+    );
+    final savedDoc = await _firebaseRequest(
+      _songsRef(user.uid).doc(resolvedSongId).get(_serverGet),
+    );
+    return _songFromDoc(savedDoc);
+  }
+
   Future<Song> saveOnlineSongToAlbum({
     required Song song,
     required String albumId,
@@ -429,6 +662,10 @@ class LibraryGateway {
 
   CollectionReference<Map<String, dynamic>> _sharedAlbumsRef() {
     return _firestore.collection('sharedAlbums');
+  }
+
+  CollectionReference<Map<String, dynamic>> _sharedAlbumInvitesRef() {
+    return _firestore.collection('sharedAlbumInvites');
   }
 
   CollectionReference<Map<String, dynamic>> _albumItemsRef(
@@ -583,6 +820,93 @@ class LibraryGateway {
     }
   }
 
+  Future<_ResolvedSharedAlbum> _resolveSharedAlbumCode(String shareCode) async {
+    final cleanCode = shareCode.trim();
+
+    if (cleanCode.isEmpty) {
+      throw const LibraryGatewayException('Share code is required.');
+    }
+
+    _requireUser();
+    var doc = await _firebaseRequest(
+      _sharedAlbumsRef().doc(cleanCode).get(_serverGet),
+    );
+    var inviteId = '';
+
+    if (!doc.exists) {
+      final inviteDoc = await _firebaseRequest(
+        _sharedAlbumInvitesRef().doc(cleanCode).get(_serverGet),
+      );
+      if (!inviteDoc.exists || inviteDoc.data()?['active'] == false) {
+        throw const LibraryGatewayException('Shared album not found.');
+      }
+
+      final shareId = _string(inviteDoc.data()?['shareId']).trim();
+      if (shareId.isEmpty) {
+        throw const LibraryGatewayException('Shared album not found.');
+      }
+
+      doc = await _firebaseRequest(
+        _sharedAlbumsRef().doc(shareId).get(_serverGet),
+      );
+      inviteId = cleanCode;
+    }
+
+    if (!doc.exists) {
+      throw const LibraryGatewayException('Shared album not found.');
+    }
+    if (doc.data()?['active'] == false) {
+      throw const LibraryGatewayException('Album này đã ngừng chia sẻ.');
+    }
+
+    return _ResolvedSharedAlbum(doc: doc, inviteId: inviteId);
+  }
+
+  Future<bool> _isSharedAlbumActive(String shareCode) async {
+    final cleanCode = shareCode.trim();
+    if (cleanCode.isEmpty) {
+      return false;
+    }
+
+    final doc = await _firebaseRequest(
+      _sharedAlbumsRef().doc(cleanCode).get(_serverGet),
+    );
+    return doc.exists && doc.data()?['active'] != false;
+  }
+
+  Future<void> _incrementSharedAlbumCounter(
+    String shareCode,
+    String field,
+  ) async {
+    final cleanCode = shareCode.trim();
+    if (cleanCode.isEmpty) {
+      return;
+    }
+
+    await _firebaseRequest(
+      _sharedAlbumsRef().doc(cleanCode).set({
+        field: FieldValue.increment(1),
+        'lastAccessedAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true)),
+    );
+  }
+
+  Future<void> _incrementInviteCounter(String inviteId, String field) async {
+    final cleanInviteId = inviteId.trim();
+    if (cleanInviteId.isEmpty) {
+      return;
+    }
+
+    await _firebaseRequest(
+      _sharedAlbumInvitesRef().doc(cleanInviteId).set({
+        field: FieldValue.increment(1),
+        'lastOpenedAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true)),
+    );
+  }
+
   Playlist _playlistFromDoc(
     DocumentSnapshot<Map<String, dynamic>> doc, {
     List<Song> songs = const [],
@@ -595,6 +919,34 @@ class LibraryGateway {
       subtitle: _string(data['subtitle']),
       coverUrl: _string(data['coverUrl']),
       songs: songs,
+    );
+  }
+
+  Playlist _importedSharedPlaylistFromDoc(
+    DocumentSnapshot<Map<String, dynamic>> doc,
+  ) {
+    final data = doc.data() ?? const <String, dynamic>{};
+    final rawSongs = data['songs'];
+    final shareActive = data['shareActive'] != false;
+    final songs = rawSongs is List
+        ? rawSongs
+            .whereType<Map>()
+            .map((raw) => Song.fromJson(raw.cast<String, dynamic>()))
+            .toList(growable: false)
+        : const <Song>[];
+
+    return Playlist(
+      id: doc.id,
+      title: _string(data['title']),
+      subtitle: _string(data['subtitle']),
+      coverUrl: _string(data['coverUrl']),
+      songs: songs,
+      shareId: _string(data['shareId']).trim().isEmpty
+          ? doc.id
+          : _string(data['shareId']),
+      isShared: true,
+      shareActive: shareActive,
+      canShare: shareActive && data['canShare'] != false,
     );
   }
 
@@ -618,10 +970,18 @@ class LibraryGateway {
       subtitle: ownerName.isEmpty
           ? subtitle
           : subtitle.isEmpty
-              ? 'Chia se boi $ownerName'
+              ? 'Chia sẻ bởi $ownerName'
               : '$subtitle • $ownerName',
       coverUrl: _string(data['coverUrl']),
       songs: songs,
+      shareId: doc.id,
+      isShared: true,
+      shareActive: data['active'] != false,
+      canShare: data['active'] != false,
+      viewCount: _int(data['viewCount']),
+      importCount: _int(data['importCount']),
+      favoriteCount: _int(data['favoriteCount']),
+      inviteCount: _int(data['inviteCount']),
     );
   }
 
@@ -714,6 +1074,16 @@ class _UploadedFile {
   const _UploadedFile({
     this.path = '',
     this.url = '',
+  });
+}
+
+class _ResolvedSharedAlbum {
+  final DocumentSnapshot<Map<String, dynamic>> doc;
+  final String inviteId;
+
+  const _ResolvedSharedAlbum({
+    required this.doc,
+    this.inviteId = '',
   });
 }
 

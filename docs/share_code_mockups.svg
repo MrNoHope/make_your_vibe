@@ -1,0 +1,159 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1100" viewBox="0 0 1600 1100">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#07090c"/>
+      <stop offset="1" stop-color="#101915"/>
+    </linearGradient>
+    <linearGradient id="greenCard" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#83ef72"/>
+      <stop offset="1" stop-color="#0d2b20"/>
+    </linearGradient>
+    <linearGradient id="mintCard" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#dcfff3"/>
+      <stop offset="1" stop-color="#5fec75"/>
+    </linearGradient>
+    <linearGradient id="violetCard" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#252133"/>
+      <stop offset="1" stop-color="#9dfc6d"/>
+    </linearGradient>
+    <linearGradient id="darkCard" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#111417"/>
+      <stop offset="1" stop-color="#24302a"/>
+    </linearGradient>
+    <filter id="shadow" x="-15%" y="-15%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#000000" flood-opacity="0.42"/>
+    </filter>
+    <style>
+      .title { font-family: Inter, Arial, sans-serif; font-weight: 900; fill: #f4fff4; }
+      .sub { font-family: Inter, Arial, sans-serif; font-weight: 700; fill: #bed0c0; }
+      .darkText { font-family: Inter, Arial, sans-serif; font-weight: 900; fill: #061008; }
+      .darkSub { font-family: Inter, Arial, sans-serif; font-weight: 700; fill: #183122; }
+      .tiny { font-family: Inter, Arial, sans-serif; font-size: 18px; font-weight: 800; letter-spacing: 1px; }
+      .bar { fill: #050806; rx: 6; }
+      .barLight { fill: #efffed; rx: 6; }
+    </style>
+  </defs>
+  <rect width="1600" height="1100" fill="url(#bg)"/>
+  <text x="80" y="88" class="title" font-size="44">Mẫu mã chia sẻ album - Make Your Vibe</text>
+  <text x="80" y="126" class="sub" font-size="22">4 hướng thiết kế: giống cảm giác Spotify Code, nhưng là mã riêng của app.</text>
+
+  <!-- Card 1 -->
+  <g transform="translate(80,180)" filter="url(#shadow)">
+    <rect width="660" height="360" rx="34" fill="url(#greenCard)"/>
+    <rect x="38" y="38" width="214" height="214" rx="20" fill="#101410"/>
+    <rect x="58" y="58" width="174" height="174" rx="14" fill="#d8fbe2"/>
+    <circle cx="145" cy="145" r="58" fill="#6fe861"/>
+    <path d="M128 111 L128 179 L184 145 Z" fill="#071007"/>
+    <text x="284" y="76" class="title" font-size="22">MAKE YOUR VIBE</text>
+    <text x="284" y="134" class="title" font-size="42">Chill V-Pop</text>
+    <text x="284" y="178" class="sub" font-size="22">Khanh chia sẻ</text>
+    <g transform="translate(42,282)">
+      <circle cx="24" cy="28" r="23" fill="#061008"/>
+      <path d="M17 23 Q27 16 39 22" stroke="#71eb65" stroke-width="5" fill="none" stroke-linecap="round"/>
+      <path d="M16 31 Q28 25 42 31" stroke="#71eb65" stroke-width="5" fill="none" stroke-linecap="round"/>
+      <path d="M20 39 Q29 35 38 39" stroke="#71eb65" stroke-width="5" fill="none" stroke-linecap="round"/>
+      <rect x="66" y="6" width="8" height="44" class="bar"/>
+      <rect x="84" y="20" width="8" height="30" class="bar"/>
+      <rect x="102" y="0" width="8" height="50" class="bar"/>
+      <rect x="120" y="14" width="8" height="36" class="bar"/>
+      <rect x="138" y="8" width="8" height="42" class="bar"/>
+      <rect x="156" y="24" width="8" height="26" class="bar"/>
+      <rect x="174" y="2" width="8" height="48" class="bar"/>
+      <rect x="192" y="18" width="8" height="32" class="bar"/>
+      <rect x="210" y="10" width="8" height="40" class="bar"/>
+      <rect x="228" y="28" width="8" height="22" class="bar"/>
+      <rect x="246" y="4" width="8" height="46" class="bar"/>
+      <rect x="264" y="16" width="8" height="34" class="bar"/>
+      <rect x="282" y="22" width="8" height="28" class="bar"/>
+      <rect x="300" y="0" width="8" height="50" class="bar"/>
+      <rect x="318" y="26" width="8" height="24" class="bar"/>
+      <rect x="336" y="12" width="8" height="38" class="bar"/>
+      <text x="380" y="37" class="darkText" font-size="25">MYV-8K42</text>
+    </g>
+  </g>
+
+  <!-- Card 2 -->
+  <g transform="translate(860,180)" filter="url(#shadow)">
+    <rect width="660" height="360" rx="34" fill="url(#mintCard)"/>
+    <rect x="42" y="42" width="260" height="260" rx="24" fill="#07100a"/>
+    <rect x="62" y="62" width="220" height="220" rx="16" fill="#17241d"/>
+    <path d="M62 245 C120 170 172 260 282 118 L282 282 L62 282 Z" fill="#6ee96a"/>
+    <circle cx="132" cy="126" r="34" fill="#eaffdf"/>
+    <text x="334" y="84" class="darkText" font-size="22">ALBUM CODE</text>
+    <text x="334" y="142" class="darkText" font-size="44">Đêm mưa</text>
+    <text x="334" y="182" class="darkSub" font-size="22">12 bài hát</text>
+    <g transform="translate(334,230)">
+      <rect x="0" y="0" width="210" height="86" rx="18" fill="#07100a"/>
+      <rect x="18" y="18" width="12" height="50" class="barLight"/>
+      <rect x="42" y="32" width="12" height="36" class="barLight"/>
+      <rect x="66" y="10" width="12" height="58" class="barLight"/>
+      <rect x="90" y="24" width="12" height="44" class="barLight"/>
+      <rect x="114" y="16" width="12" height="52" class="barLight"/>
+      <rect x="138" y="38" width="12" height="30" class="barLight"/>
+      <rect x="162" y="6" width="12" height="62" class="barLight"/>
+      <rect x="186" y="28" width="12" height="40" class="barLight"/>
+    </g>
+    <text x="334" y="330" class="darkSub" font-size="20">Quét trong Make Your Vibe</text>
+  </g>
+
+  <!-- Card 3 -->
+  <g transform="translate(80,620)" filter="url(#shadow)">
+    <rect width="660" height="360" rx="34" fill="url(#darkCard)"/>
+    <text x="44" y="72" class="title" font-size="22">SHARE CARD</text>
+    <text x="44" y="132" class="title" font-size="46">Ballad Việt</text>
+    <text x="44" y="174" class="sub" font-size="22">Gửi bạn nghe cùng vibe</text>
+    <g transform="translate(44,220)">
+      <circle cx="26" cy="30" r="24" fill="#6ee96a"/>
+      <path d="M21 17 L21 43 L43 30 Z" fill="#061008"/>
+      <rect x="72" y="4" width="10" height="52" class="barLight"/>
+      <rect x="94" y="20" width="10" height="36" class="barLight"/>
+      <rect x="116" y="8" width="10" height="48" class="barLight"/>
+      <rect x="138" y="28" width="10" height="28" class="barLight"/>
+      <rect x="160" y="0" width="10" height="56" class="barLight"/>
+      <rect x="182" y="18" width="10" height="38" class="barLight"/>
+      <rect x="204" y="10" width="10" height="46" class="barLight"/>
+      <rect x="226" y="24" width="10" height="32" class="barLight"/>
+      <rect x="248" y="6" width="10" height="50" class="barLight"/>
+      <rect x="270" y="14" width="10" height="42" class="barLight"/>
+      <rect x="292" y="32" width="10" height="24" class="barLight"/>
+      <rect x="314" y="2" width="10" height="54" class="barLight"/>
+    </g>
+    <rect x="452" y="74" width="150" height="150" rx="18" fill="#efffed"/>
+    <rect x="474" y="96" width="34" height="34" fill="#061008"/>
+    <rect x="546" y="96" width="34" height="34" fill="#061008"/>
+    <rect x="474" y="168" width="34" height="34" fill="#061008"/>
+    <rect x="522" y="136" width="22" height="22" fill="#061008"/>
+    <rect x="554" y="168" width="18" height="18" fill="#061008"/>
+    <rect x="506" y="192" width="18" height="18" fill="#061008"/>
+    <text x="446" y="260" class="sub" font-size="18">Có QR dự phòng</text>
+  </g>
+
+  <!-- Card 4 -->
+  <g transform="translate(860,620)" filter="url(#shadow)">
+    <rect width="660" height="360" rx="34" fill="url(#violetCard)"/>
+    <rect x="42" y="42" width="184" height="246" rx="22" fill="#f7fff4"/>
+    <rect x="62" y="62" width="144" height="144" rx="16" fill="#061008"/>
+    <circle cx="134" cy="134" r="48" fill="#6ee96a"/>
+    <text x="70" y="242" class="darkText" font-size="24">Top Hits</text>
+    <text x="70" y="270" class="darkSub" font-size="16">MYV CODE</text>
+    <text x="260" y="86" class="title" font-size="34">Stack Cover</text>
+    <text x="260" y="126" class="sub" font-size="22">Dạng gần Spotify nhất</text>
+    <rect x="258" y="182" width="328" height="68" rx="28" fill="#efffed"/>
+    <rect x="286" y="202" width="7" height="30" class="bar"/>
+    <rect x="304" y="194" width="7" height="38" class="bar"/>
+    <rect x="322" y="210" width="7" height="22" class="bar"/>
+    <rect x="340" y="188" width="7" height="44" class="bar"/>
+    <rect x="358" y="202" width="7" height="30" class="bar"/>
+    <rect x="376" y="194" width="7" height="38" class="bar"/>
+    <rect x="394" y="216" width="7" height="16" class="bar"/>
+    <rect x="412" y="184" width="7" height="48" class="bar"/>
+    <rect x="430" y="202" width="7" height="30" class="bar"/>
+    <rect x="448" y="192" width="7" height="40" class="bar"/>
+    <rect x="466" y="210" width="7" height="22" class="bar"/>
+    <rect x="484" y="186" width="7" height="46" class="bar"/>
+    <rect x="502" y="202" width="7" height="30" class="bar"/>
+    <rect x="520" y="194" width="7" height="38" class="bar"/>
+    <rect x="538" y="214" width="7" height="18" class="bar"/>
+    <text x="260" y="306" class="sub" font-size="19">Lưu ảnh hoặc gửi trực tiếp</text>
+  </g>
+</svg>

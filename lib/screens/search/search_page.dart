@@ -88,6 +88,12 @@ class _SearchPageState extends State<SearchPage> {
                     await widget.controller.playSong(
                       song,
                       queue: widget.controller.searchResults,
+                      context: PlayContextInfo(
+                        type: PlayOriginType.search,
+                        title: textController.text.trim().isEmpty
+                            ? 'Lượt tìm kiếm gần đây'
+                            : textController.text.trim(),
+                      ),
                     );
                     if (mounted) {
                       widget.onOpenPlayer();
@@ -96,6 +102,8 @@ class _SearchPageState extends State<SearchPage> {
                   onActiveToggle: widget.controller.togglePlay,
                   onActiveOpen: widget.onOpenPlayer,
                   onSongAddToAlbum: showAddToAlbumDialog,
+                  isSongFavorite: widget.controller.isFavoriteSong,
+                  onSongFavoriteToggle: widget.controller.toggleFavoriteSong,
                 ),
               if (widget.controller.errorMessage.isNotEmpty) ...[
                 const SizedBox(height: 12),

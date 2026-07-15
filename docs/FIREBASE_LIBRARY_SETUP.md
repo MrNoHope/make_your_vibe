@@ -49,6 +49,7 @@ users/{uid}/albums/{albumId}/items/{songId}
 users/{uid}/songs/{songId}
 users/{uid}/sharedAlbums/{shareCode}
 sharedAlbums/{shareCode}
+sharedAlbumInvites/{inviteCode}
 ```
 
 YouTube songs store metadata only:
@@ -69,33 +70,23 @@ streamUrl: <supabase public url>
 ```
 
 Shared albums store a snapshot of album metadata and song metadata in
-`sharedAlbums/{shareCode}`. Friends import the share code into
+`sharedAlbums/{shareCode}`. Friends import the share code or invite code into
 `users/{uid}/sharedAlbums/{shareCode}` and stream from the stored YouTube id or
 uploaded file URL.
 
+Share behavior:
+
+- `sharedAlbums/{shareCode}.active == true`: new users can import/open the
+  album, imported users can create invite codes, and counters can update.
+- `active == false`: new users cannot import/open by code anymore.
+- Imported users keep their saved snapshot in `users/{uid}/sharedAlbums`, so
+  they can still listen after the owner stops sharing.
+- Imported users cannot create new invite codes after the root album is stopped.
+- Counters: `viewCount`, `importCount`, `favoriteCount`, `inviteCount`.
+
 ## Firestore rules
 
-Firebase Console > Firestore Database > Rules:
-
-```js
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /users/{userId}/{document=**} {
-      allow read, write: if request.auth != null
-        && request.auth.uid == userId;
-    }
-
-    match /sharedAlbums/{shareId} {
-      allow read: if request.auth != null;
-      allow create: if request.auth != null
-        && request.resource.data.ownerId == request.auth.uid;
-      allow update, delete: if request.auth != null
-        && resource.data.ownerId == request.auth.uid;
-    }
-  }
-}
-```
+Firebase Console > Firestore Database > Rules: deploy `firestore.rules`.
 
 ## Supabase Storage
 

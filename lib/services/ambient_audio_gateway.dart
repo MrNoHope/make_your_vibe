@@ -21,40 +21,64 @@ class AmbientAudioGateway extends ChangeNotifier {
 
   List<AmbientLayer> _layers = const [
     AmbientLayer(
-      id: 'rain',
-      name: 'Rain',
-      assetPath: 'assets/sfx/rain.wav',
-      volume: 0.58,
-    ),
-    AmbientLayer(
-      id: 'waves',
-      name: 'Waves',
-      assetPath: 'assets/sfx/waves.wav',
-      volume: 0.52,
-    ),
-    AmbientLayer(
-      id: 'fire',
-      name: 'Fire',
-      assetPath: 'assets/sfx/fire.wav',
-      volume: 0.48,
-    ),
-    AmbientLayer(
-      id: 'wind',
-      name: 'Wind',
-      assetPath: 'assets/sfx/wind.wav',
-      volume: 0.46,
-    ),
-    AmbientLayer(
-      id: 'cafe',
-      name: 'Cafe',
-      assetPath: 'assets/sfx/cafe.wav',
+      id: 'cricket_sound',
+      name: 'Tiếng dế',
+      assetPath: 'assets/audio/ambient/cricket_sound.mp3',
       volume: 0.42,
     ),
     AmbientLayer(
-      id: 'noise',
-      name: 'Noise',
-      assetPath: 'assets/sfx/noise.wav',
-      volume: 0.38,
+      id: 'hard_fire',
+      name: 'Lửa lớn',
+      assetPath: 'assets/audio/ambient/hard_fire.mp3',
+      volume: 0.42,
+    ),
+    AmbientLayer(
+      id: 'hard_rain',
+      name: 'Mưa lớn',
+      assetPath: 'assets/audio/ambient/hard_rain.mp3',
+      volume: 0.48,
+    ),
+    AmbientLayer(
+      id: 'night_cricket_sound',
+      name: 'Dế ban đêm',
+      assetPath: 'assets/audio/ambient/night_cricket_sound.mp3',
+      volume: 0.42,
+    ),
+    AmbientLayer(
+      id: 'ocean_waves',
+      name: 'Sóng biển',
+      assetPath: 'assets/audio/ambient/ocean_waves.mp3',
+      volume: 0.5,
+    ),
+    AmbientLayer(
+      id: 'ocean_waves_smooth',
+      name: 'Sóng biển êm',
+      assetPath: 'assets/audio/ambient/ocean_waves_smooth.mp3',
+      volume: 0.5,
+    ),
+    AmbientLayer(
+      id: 'smooth_brown_noise',
+      name: 'Brown noise êm',
+      assetPath: 'assets/audio/ambient/smooth_brown_noise.mp3',
+      volume: 0.36,
+    ),
+    AmbientLayer(
+      id: 'soft_brown_noise',
+      name: 'Brown noise nhẹ',
+      assetPath: 'assets/audio/ambient/soft_brown_noise.mp3',
+      volume: 0.36,
+    ),
+    AmbientLayer(
+      id: 'soft_fire',
+      name: 'Lửa nhẹ',
+      assetPath: 'assets/audio/ambient/soft_fire.mp3',
+      volume: 0.44,
+    ),
+    AmbientLayer(
+      id: 'soft_rain',
+      name: 'Mưa nhẹ',
+      assetPath: 'assets/audio/ambient/soft_rain.mp3',
+      volume: 0.52,
     ),
   ];
 

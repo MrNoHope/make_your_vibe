@@ -39,19 +39,22 @@ class AuthProviderButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox(
       height: 50,
-      child: OutlinedButton(
+      child: TextButton(
         onPressed: onPressed,
-        style: OutlinedButton.styleFrom(
-          foregroundColor: AppColors.text,
-          side: const BorderSide(color: AppColors.line),
+        style: TextButton.styleFrom(
+          backgroundColor: const Color(0xFF1F1F1F),
+          disabledBackgroundColor: const Color(0xFF191919),
+          foregroundColor: Colors.white,
+          disabledForegroundColor: Colors.white54,
+          padding: const EdgeInsets.symmetric(horizontal: 18),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(24),
           ),
         ),
         child: Row(
           children: [
             SizedBox.square(
-              dimension: 28,
+              dimension: 24,
               child: Center(child: logo),
             ),
             const SizedBox(width: 12),
@@ -60,15 +63,50 @@ class AuthProviderButton extends StatelessWidget {
                 label,
                 textAlign: TextAlign.center,
                 style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w800,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w900,
                 ),
               ),
             ),
-            const SizedBox(width: 40),
+            const SizedBox(width: 36),
           ],
         ),
       ),
+    );
+  }
+}
+
+class AuthDivider extends StatelessWidget {
+  const AuthDivider({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const Row(
+      children: [
+        Expanded(
+          child: Divider(
+            color: Color(0xFF262626),
+            thickness: 1,
+          ),
+        ),
+        Padding(
+          padding: EdgeInsets.symmetric(horizontal: 22),
+          child: Text(
+            'hoặc',
+            style: TextStyle(
+              color: Color(0xFF8A8A8A),
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+        Expanded(
+          child: Divider(
+            color: Color(0xFF262626),
+            thickness: 1,
+          ),
+        ),
+      ],
     );
   }
 }

@@ -53,14 +53,14 @@ class TopBar extends StatelessWidget {
 
 class SectionHeader extends StatelessWidget {
   final String title;
-  final String action;
-  final VoidCallback onTap;
+  final String? action;
+  final VoidCallback? onTap;
 
   const SectionHeader({
     super.key,
     required this.title,
-    required this.action,
-    required this.onTap,
+    this.action,
+    this.onTap,
   });
 
   @override
@@ -76,24 +76,25 @@ class SectionHeader extends StatelessWidget {
             ),
           ),
         ),
-        InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(99),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 8,
-              vertical: 5,
-            ),
-            child: Text(
-              action,
-              style: const TextStyle(
-                color: AppColors.green,
-                fontSize: 11,
-                fontWeight: FontWeight.w900,
+        if (action != null && onTap != null)
+          InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(99),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 8,
+                vertical: 5,
+              ),
+              child: Text(
+                action!,
+                style: const TextStyle(
+                  color: AppColors.green,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                ),
               ),
             ),
           ),
-        ),
       ],
     );
   }

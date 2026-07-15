@@ -2,12 +2,12 @@ import 'dart:async';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
-import 'package:share_plus/share_plus.dart';
 import '../../controllers/vibe_controller.dart';
 import '../../core/app_colors.dart';
 import '../../models/playlist.dart';
 import '../../models/song.dart';
 import '../../services/library_gateway.dart';
+import '../../widgets/album_share_dialog.dart';
 import '../../widgets/common_widgets.dart';
 
 class PlayerScreen extends StatefulWidget {
@@ -33,23 +33,31 @@ class _PlayerScreenState extends State<PlayerScreen> {
         animation: controller,
         builder: (context, _) {
           final song = controller.currentSong;
+          final favorite = song != null && controller.isFavoriteSong(song);
 
           return Stack(
             children: [
               _PlayerBackdrop(coverUrl: song?.coverUrl ?? ''),
               SafeArea(
+                top: false,
                 child: LayoutBuilder(
                   builder: (context, constraints) {
-                    final mediaSize = (constraints.maxWidth - 40)
-                        .clamp(230.0, 360.0)
+                    final height = constraints.maxHeight;
+                    final mediaSize = (constraints.maxWidth - 72)
+                        .clamp(206.0, height * 0.32)
                         .toDouble();
+                    final topGap = (height * 0.05).clamp(30.0, 46.0).toDouble();
+                    final mediaInfoGap =
+                        (height * 0.034).clamp(24.0, 34.0).toDouble();
+                    final infoProgressGap =
+                        (height * 0.056).clamp(42.0, 58.0).toDouble();
+                    final progressControlsGap =
+                        (height * 0.056).clamp(42.0, 58.0).toDouble();
 
-                    return SingleChildScrollView(
-                      padding: const EdgeInsets.fromLTRB(20, 6, 20, 24),
-                      child: ConstrainedBox(
-                        constraints: BoxConstraints(
-                          minHeight: constraints.maxHeight - 30,
-                        ),
+                    final content = Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 6, 20, 18),
+                      child: SizedBox(
+                        height: height - 24,
                         child: Column(
                           children: [
                             Row(
@@ -62,15 +70,26 @@ class _PlayerScreenState extends State<PlayerScreen> {
                                     size: 32,
                                   ),
                                 ),
-                                const Expanded(
-                                  child: Text(
-                                    'NOW PLAYING',
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      color: AppColors.soft,
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w900,
-                                    ),
+                                Expanded(
+                                  child: _PlayContextHeader(
+                                    contextInfo: controller.playContext,
+                                  ),
+                                ),
+                                IconButton(
+                                  tooltip: favorite
+                                      ? 'Bỏ yêu thích'
+                                      : 'Thêm vào yêu thích',
+                                  onPressed: song == null
+                                      ? null
+                                      : () =>
+                                          controller.toggleFavoriteSong(song),
+                                  icon: Icon(
+                                    favorite
+                                        ? Icons.favorite_rounded
+                                        : Icons.favorite_border_rounded,
+                                    color: favorite
+                                        ? AppColors.green2
+                                        : AppColors.soft,
                                   ),
                                 ),
                                 IconButton(
@@ -82,14 +101,14 @@ class _PlayerScreenState extends State<PlayerScreen> {
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 16),
+                            SizedBox(height: topGap),
                             Center(
                               child: SizedBox.square(
                                 dimension: mediaSize,
                                 child: _HeroMedia(song: song),
                               ),
                             ),
-                            const SizedBox(height: 20),
+                            SizedBox(height: mediaInfoGap),
                             Align(
                               alignment: Alignment.centerLeft,
                               child: Text(
@@ -118,21 +137,13 @@ class _PlayerScreenState extends State<PlayerScreen> {
                                 ),
                               ),
                             ),
-                            const SizedBox(height: 14),
-                            _AlbumInfoBlock(song: song),
-                            const SizedBox(height: 18),
+                            SizedBox(height: infoProgressGap),
                             _ProgressBlock(controller: controller, song: song),
-                            const SizedBox(height: 20),
+                            SizedBox(height: progressControlsGap),
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                _PlainControlButton(
-                                  tooltip: 'Lùi 10 giây',
-                                  icon: Icons.replay_10_rounded,
-                                  onPressed: song == null
-                                      ? null
-                                      : controller.rewindTenSeconds,
-                                ),
+                                _ShuffleControlButton(controller: controller),
                                 _PlainControlButton(
                                   tooltip: 'Bài trước',
                                   icon: Icons.skip_previous_rounded,
@@ -153,7 +164,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                               ],
                             ),
                             if (controller.errorMessage.isNotEmpty) ...[
-                              const SizedBox(height: 24),
+                              const SizedBox(height: 12),
                               BackendNotice(
                                 icon: Icons.error_outline_rounded,
                                 title: 'Lỗi phát nhạc',
@@ -164,6 +175,12 @@ class _PlayerScreenState extends State<PlayerScreen> {
                         ),
                       ),
                     );
+
+                    if (height < 680) {
+                      return SingleChildScrollView(child: content);
+                    }
+
+                    return content;
                   },
                 ),
               ),
@@ -175,6 +192,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
   }
 
   Future<void> _showSongActions(BuildContext context, Song song) {
+    final favorite = controller.isFavoriteSong(song);
+
     return showModalBottomSheet<void>(
       context: context,
       backgroundColor: AppColors.card,
@@ -199,6 +218,19 @@ class _PlayerScreenState extends State<PlayerScreen> {
                 const SizedBox(height: 14),
                 Row(
                   children: [
+                    Expanded(
+                      child: _PlayerActionButton(
+                        icon: favorite
+                            ? Icons.favorite_rounded
+                            : Icons.favorite_border_rounded,
+                        label: favorite ? 'Bỏ thích' : 'Yêu thích',
+                        onTap: () {
+                          Navigator.of(sheetContext).pop();
+                          unawaited(controller.toggleFavoriteSong(song));
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 10),
                     Expanded(
                       child: _PlayerActionButton(
                         icon: Icons.ios_share_rounded,
@@ -232,6 +264,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
   Future<void> _shareSong(Song song) async {
     final link = _songShareLink(song);
+    final code = link.isNotEmpty ? link : _songShareFallbackCode(song);
     final artist = song.artist.trim();
     final message = StringBuffer('Nghe "${song.title}"');
 
@@ -244,11 +277,21 @@ class _PlayerScreenState extends State<PlayerScreen> {
     }
 
     try {
-      await SharePlus.instance.share(
-        ShareParams(
-          text: message.toString(),
-          subject: 'Make Your Vibe - ${song.title}',
+      await showAlbumShareDialog(
+        context: context,
+        album: Playlist(
+          id: song.storedId,
+          title: song.title,
+          subtitle: artist.isEmpty ? 'Make Your Vibe' : artist,
+          coverUrl: song.coverUrl,
+          songs: [song],
         ),
+        code: code,
+        title: 'Mã share bài hát',
+        codeLabel: 'Bài hát',
+        savedMessage: 'Đã lưu ảnh mã share.',
+        shareText: message.toString(),
+        subject: 'Make Your Vibe - ${song.title}',
       );
     } catch (error) {
       _showSnack('$error');
@@ -263,6 +306,19 @@ class _PlayerScreenState extends State<PlayerScreen> {
     }
 
     return song.streamUrl.trim();
+  }
+
+  String _songShareFallbackCode(Song song) {
+    return Uri(
+      scheme: 'make-your-vibe',
+      host: 'song',
+      queryParameters: {
+        if (song.storedId.isNotEmpty) 'id': song.storedId,
+        if (song.sourceType.trim().isNotEmpty) 'sourceType': song.sourceType,
+        if (song.onlineSourceId.isNotEmpty) 'sourceId': song.onlineSourceId,
+        'title': song.title.trim().isEmpty ? 'Untitled' : song.title.trim(),
+      },
+    ).toString();
   }
 
   Future<void> _showAddToAlbumDialog(Song song) async {
@@ -556,73 +612,51 @@ class _HeroMedia extends StatelessWidget {
   }
 }
 
-class _AlbumInfoBlock extends StatelessWidget {
-  final Song? song;
+class _PlayContextHeader extends StatelessWidget {
+  final PlayContextInfo contextInfo;
 
-  const _AlbumInfoBlock({required this.song});
+  const _PlayContextHeader({required this.contextInfo});
 
   @override
   Widget build(BuildContext context) {
-    final album = song == null
-        ? 'No album'
-        : song!.album.trim().isNotEmpty
-            ? song!.album.trim()
-            : song!.artist.trim().isNotEmpty
-                ? song!.artist.trim()
-                : 'Single';
-    final duration = song?.durationText ?? '--:--';
+    final eyebrow = switch (contextInfo.type) {
+      PlayOriginType.search => 'ĐANG PHÁT TỪ TÌM KIẾM',
+      PlayOriginType.album => 'ĐANG PHÁT TỪ ALBUM',
+      PlayOriginType.playlist => 'ĐANG PHÁT TỪ DANH SÁCH PHÁT',
+      PlayOriginType.library => 'ĐANG PHÁT TỪ THƯ VIỆN',
+      PlayOriginType.none => 'ĐANG PHÁT',
+    };
+    final title = contextInfo.hasTitle ? contextInfo.title.trim() : '';
 
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.26),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-      ),
-      child: Row(
-        children: [
-          CoverImage(
-            url: song?.coverUrl ?? '',
-            size: 46,
-            radius: 7,
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          eyebrow,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            color: AppColors.soft,
+            fontSize: 10,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 0,
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Album',
-                  style: TextStyle(
-                    color: AppColors.muted,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  album,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 10),
+        ),
+        if (title.isNotEmpty) ...[
+          const SizedBox(height: 3),
           Text(
-            duration,
+            title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
             style: const TextStyle(
-              color: AppColors.soft,
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
+              fontSize: 14,
+              fontWeight: FontWeight.w900,
             ),
           ),
         ],
-      ),
+      ],
     );
   }
 }
@@ -830,6 +864,45 @@ class _RepeatControlButton extends StatelessWidget {
                   ? Icons.repeat_one_rounded
                   : Icons.repeat_rounded,
             ),
+          ),
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 160),
+            width: active ? 5 : 0,
+            height: active ? 5 : 0,
+            decoration: const BoxDecoration(
+              color: AppColors.green2,
+              shape: BoxShape.circle,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ShuffleControlButton extends StatelessWidget {
+  final VibeController controller;
+
+  const _ShuffleControlButton({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    final active = controller.shuffleEnabled;
+
+    return SizedBox(
+      width: 48,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            tooltip: active ? 'Tắt phát xen kẽ' : 'Phát xen kẽ',
+            onPressed: controller.currentSong == null
+                ? null
+                : controller.toggleShuffle,
+            iconSize: 34,
+            color: active ? AppColors.green2 : Colors.white,
+            disabledColor: AppColors.muted,
+            icon: const Icon(Icons.shuffle_rounded),
           ),
           AnimatedContainer(
             duration: const Duration(milliseconds: 160),

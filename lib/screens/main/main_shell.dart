@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../../controllers/vibe_controller.dart';
-import '../../core/app_colors.dart';
 import '../../core/app_language.dart';
 import '../../screens/home/home_page.dart';
 import '../../screens/library/library_page.dart';
@@ -44,16 +43,18 @@ class _MainShellState extends State<MainShell> {
       return;
     }
 
+    final backgroundColor = Theme.of(context).scaffoldBackgroundColor;
+
     await showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (_) => FractionallySizedBox(
-        heightFactor: 0.92,
+        heightFactor: 0.84,
         child: ClipRRect(
           borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
           child: ColoredBox(
-            color: AppColors.background,
+            color: backgroundColor,
             child: PlayerScreen(controller: widget.controller),
           ),
         ),
@@ -82,7 +83,7 @@ class _MainShellState extends State<MainShell> {
           });
         },
       ),
-      SoundEffectsPage(onOpenMixer: openAmbientMixer),
+      const SoundEffectsPage(),
       SearchPage(
         controller: widget.controller,
         onOpenPlayer: openPlayer,
@@ -107,6 +108,7 @@ class _MainShellState extends State<MainShell> {
     ];
 
     return Scaffold(
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         bottom: false,
         child: Row(
@@ -125,14 +127,21 @@ class _MainShellState extends State<MainShell> {
               },
             ),
             Expanded(
-              child: Column(
+              child: Stack(
                 children: [
-                  Expanded(
-                    child: pages[index],
+                  IndexedStack(
+                    index: index,
+                    children: pages,
                   ),
-                  MiniPlayerBar(
-                    controller: widget.controller,
-                    onTap: openPlayer,
+                  Align(
+                    alignment: Alignment.bottomCenter,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(0, 0, 0, 8),
+                      child: MiniPlayerBar(
+                        controller: widget.controller,
+                        onTap: openPlayer,
+                      ),
+                    ),
                   ),
                 ],
               ),

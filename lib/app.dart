@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'controllers/vibe_controller.dart';
 import 'core/app_language.dart';
@@ -26,6 +27,7 @@ class _MakeYourVibeAppState extends State<MakeYourVibeApp> {
   @override
   void initState() {
     super.initState();
+    _syncSystemChrome();
     boot();
   }
 
@@ -72,9 +74,16 @@ class _MakeYourVibeAppState extends State<MakeYourVibeApp> {
   }
 
   void setDarkMode(bool value) {
+    _syncSystemChrome(value);
     setState(() {
       darkMode = value;
     });
+  }
+
+  void _syncSystemChrome([bool? value]) {
+    SystemChrome.setSystemUIOverlayStyle(
+      AppTheme.systemOverlayStyle(value ?? darkMode),
+    );
   }
 
   void toggleLanguage() {
@@ -85,26 +94,31 @@ class _MakeYourVibeAppState extends State<MakeYourVibeApp> {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Make Your Vibe',
-      debugShowCheckedModeBanner: false,
-      theme: darkMode ? AppTheme.dark() : AppTheme.light(),
-      home: loading
-          ? const SplashScreen()
-          : loggedIn
-              ? MainShell(
-                  controller: controller,
-                  onLogout: () {
-                    logout();
-                  },
-                  darkMode: darkMode,
-                  onDarkModeChanged: setDarkMode,
-                  language: language,
-                  onLanguageChanged: toggleLanguage,
-                )
-              : AuthScreen(
-                  onAuthenticated: enterApp,
-                ),
+    final theme = darkMode ? AppTheme.dark() : AppTheme.light();
+
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: AppTheme.systemOverlayStyle(darkMode),
+      child: MaterialApp(
+        title: 'Make Your Vibe',
+        debugShowCheckedModeBanner: false,
+        theme: theme,
+        home: loading
+            ? const SplashScreen()
+            : loggedIn
+                ? MainShell(
+                    controller: controller,
+                    onLogout: () {
+                      logout();
+                    },
+                    darkMode: darkMode,
+                    onDarkModeChanged: setDarkMode,
+                    language: language,
+                    onLanguageChanged: toggleLanguage,
+                  )
+                : AuthScreen(
+                    onAuthenticated: enterApp,
+                  ),
+      ),
     );
   }
 }
