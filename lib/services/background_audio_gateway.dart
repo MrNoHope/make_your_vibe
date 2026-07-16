@@ -12,7 +12,7 @@ class BackgroundAudioGateway {
     if (_initialized) {
       return;
     }
-
+//
     final session = await AudioSession.instance;
     await session.configure(const AudioSessionConfiguration.music());
 

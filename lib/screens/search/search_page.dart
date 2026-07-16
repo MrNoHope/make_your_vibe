@@ -128,6 +128,7 @@ class _SearchPageState extends State<SearchPage> {
     );
   }
 
+
   void quickSearch(String value) {
     textController.text = value;
     submit();

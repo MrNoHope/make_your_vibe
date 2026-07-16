@@ -10,6 +10,7 @@ class SoundSlot extends StatelessWidget {
   final VoidCallback onTap;
   final ValueChanged<double> onVolumeChanged;
 
+
   const SoundSlot({
     super.key,
     required this.layer,

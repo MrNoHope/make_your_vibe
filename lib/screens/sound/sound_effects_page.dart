@@ -8,6 +8,7 @@ import '../../widgets/common_widgets.dart';
 class SoundEffectsPage extends StatelessWidget {
   const SoundEffectsPage({super.key});
 
+
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(

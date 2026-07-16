@@ -82,7 +82,7 @@ class VibeController extends ChangeNotifier {
   StreamSubscription<Duration?>? _audioDurationSub;
   StreamSubscription<Object>? _audioErrorSub;
   StreamSubscription<AudioGatewayCommand>? _audioCommandSub;
-
+//
   VibeController() {
     _audioStateSub = audio.playerStateStream.listen((state) {
       isPlaying = state.playing ||
