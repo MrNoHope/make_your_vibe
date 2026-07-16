@@ -11,6 +11,8 @@ import '../../screens/settings/profile_screen.dart';
 import '../../screens/sound/sound_effects_page.dart';
 import '../../widgets/mini_player.dart';
 
+/// Khung điều hướng chính của ứng dụng
+/// Quản lý các màn hình Home, Search, Library và Settings, đồng thời duy trì mini player khi người dùng chuyển tab
 class MainShell extends StatefulWidget {
   final VibeController controller;
   final VoidCallback onLogout;
