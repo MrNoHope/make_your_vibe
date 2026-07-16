@@ -2256,6 +2256,7 @@ class ShareCodeScannerPage extends StatefulWidget {
 class _ShareCodeScannerPageState extends State<ShareCodeScannerPage> {
   late final MobileScannerController scannerController;
   bool handled = false;
+  bool pickingImage = false;
 
   @override
   void initState() {
@@ -2289,6 +2290,70 @@ class _ShareCodeScannerPageState extends State<ShareCodeScannerPage> {
     }
   }
 
+  Future<void> scanImageFromDevice() async {
+    if (handled || pickingImage) {
+      return;
+    }
+
+    setState(() => pickingImage = true);
+    await scannerController.stop();
+
+    try {
+      final result = await FilePicker.pickFiles(
+        type: FileType.image,
+        withData: false,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      final path = result?.files.single.path?.trim();
+      if (path == null || path.isEmpty) {
+        setState(() => pickingImage = false);
+        await scannerController.start();
+        return;
+      }
+
+      final capture = await scannerController.analyzeImage(
+        path,
+        formats: const [BarcodeFormat.qrCode],
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() => pickingImage = false);
+
+      if (capture == null || capture.barcodes.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Không tìm thấy QR trong ảnh.')),
+        );
+        await scannerController.start();
+        return;
+      }
+
+      handleScan(capture);
+      if (!handled && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Ảnh chưa có mã album hợp lệ.')),
+        );
+        await scannerController.start();
+      }
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() => pickingImage = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Không quét được ảnh: $error')),
+      );
+      await scannerController.start();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -2296,6 +2361,19 @@ class _ShareCodeScannerPageState extends State<ShareCodeScannerPage> {
       appBar: AppBar(
         title: const Text('Quét mã album'),
         backgroundColor: Colors.black,
+        actions: [
+          IconButton(
+            tooltip: 'Chọn ảnh QR',
+            onPressed: pickingImage ? null : scanImageFromDevice,
+            icon: pickingImage
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.photo_library_rounded),
+          ),
+        ],
       ),
       body: Stack(
         fit: StackFit.expand,
@@ -2336,13 +2414,42 @@ class _ShareCodeScannerPageState extends State<ShareCodeScannerPage> {
                 color: Colors.black.withValues(alpha: 0.62),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: const Text(
-                'Đưa QR trên thẻ share vào khung để nhập album.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w700,
-                ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'Đưa QR trên thẻ share vào khung để nhập album.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: pickingImage ? null : scanImageFromDevice,
+                      icon: pickingImage
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.image_search_rounded),
+                      label: Text(
+                        pickingImage ? 'Đang đọc ảnh...' : 'Quét QR từ ảnh',
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.white,
+                        side: const BorderSide(color: AppColors.green),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
