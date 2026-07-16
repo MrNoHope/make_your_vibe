@@ -7,7 +7,7 @@ import '../models/playlist.dart';
 import 'common_widgets.dart';
 import 'share_image_saver.dart';
 
-Future<void> showAlbumShareDialog({
+Future<void> showAlbumShareDialog({  // Hộp thoại chia sẻ album bằng mã chia sẻ
   required BuildContext context,
   required Playlist album,
   required String code,

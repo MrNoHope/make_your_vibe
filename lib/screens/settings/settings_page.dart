@@ -4,7 +4,7 @@ import '../../core/app_colors.dart';
 import '../../core/app_language.dart';
 import '../../widgets/common_widgets.dart';
 
-class SettingsPage extends StatefulWidget {
+class SettingsPage extends StatefulWidget { // Màn hình Cài đặt: Quản lý các tùy chọn của ứng dụng
   final VoidCallback onLogout;
 
   final bool darkMode;

@@ -4,7 +4,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 
-Future<String?> saveRepaintBoundaryAsPng({
+Future<String?> saveRepaintBoundaryAsPng({  // Tạo và lưu hình ảnh chứa thông tin album để chia sẻ
   required GlobalKey boundaryKey,
   required String fileName,
 }) async {

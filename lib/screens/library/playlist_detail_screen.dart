@@ -7,7 +7,7 @@ class PlaylistDetailScreen extends StatelessWidget {
   const PlaylistDetailScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) {  // Màn hình chi tiết Playlist: Hiển thị thông tin và danh sách bài hát
     return Scaffold(
       body: SafeArea(
         child: PageScroll(

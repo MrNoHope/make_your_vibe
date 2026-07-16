@@ -15,7 +15,7 @@ import '../../widgets/common_widgets.dart';
 import '../../widgets/mini_player.dart';
 import '../../widgets/song_widgets.dart';
 
-class LibraryPage extends StatefulWidget {
+class LibraryPage extends StatefulWidget {  // Màn hình Thư viện: Hiển thị album, bài hát và danh sách phát của người dùng
   final VibeController controller;
   final VoidCallback onOpenPlayer;
   final VoidCallback onOpenSearch;

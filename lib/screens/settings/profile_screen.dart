@@ -11,7 +11,7 @@ import '../../models/user_profile.dart';
 import '../../services/user_gateway.dart';
 import '../../widgets/common_widgets.dart';
 
-class ProfileScreen extends StatefulWidget {
+class ProfileScreen extends StatefulWidget {  // Màn hình Hồ sơ: Hiển thị thông tin tài khoản người dùng
   final VoidCallback onLogout;
   final bool darkMode;
   final ValueChanged<bool> onDarkModeChanged;
