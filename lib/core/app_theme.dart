@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'app_colors.dart';
 
@@ -18,12 +19,27 @@ class AppTheme {
   static ThemeData light() {
     return _base(
       brightness: Brightness.light,
-      background: const Color(0xFFF4F8F3),
-      background2: const Color(0xFFFFFFFF),
-      panel: const Color(0xFFFFFFFF),
-      text: const Color(0xFF101610),
-      soft: const Color(0xFF4F5C50),
-      muted: const Color(0xFF7B887C),
+      background: AppColors.lightBackground,
+      background2: AppColors.lightBackground2,
+      panel: AppColors.lightPanel,
+      text: AppColors.lightText,
+      soft: AppColors.lightSoft,
+      muted: AppColors.lightMuted,
+    );
+  }
+
+  static SystemUiOverlayStyle systemOverlayStyle(bool darkMode) {
+    final background =
+        darkMode ? AppColors.background : AppColors.lightBackground;
+    final brightness = darkMode ? Brightness.light : Brightness.dark;
+
+    return (darkMode ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark)
+        .copyWith(
+      statusBarColor: background,
+      systemNavigationBarColor: background,
+      systemNavigationBarDividerColor: background,
+      statusBarIconBrightness: brightness,
+      systemNavigationBarIconBrightness: brightness,
     );
   }
 
@@ -42,12 +58,25 @@ class AppTheme {
       useMaterial3: true,
       brightness: brightness,
       scaffoldBackgroundColor: background,
+      canvasColor: background,
+      dividerColor: dark ? AppColors.line : AppColors.lightLine,
       colorScheme: ColorScheme.fromSeed(
         seedColor: AppColors.green,
         brightness: brightness,
         primary: AppColors.green,
         secondary: AppColors.green2,
         surface: panel,
+        onSurface: text,
+        onSurfaceVariant: soft,
+      ),
+      iconTheme: IconThemeData(color: soft),
+      appBarTheme: AppBarTheme(
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        backgroundColor: background,
+        foregroundColor: text,
+        surfaceTintColor: Colors.transparent,
+        systemOverlayStyle: systemOverlayStyle(dark),
       ),
       textTheme: TextTheme(
         headlineLarge: TextStyle(

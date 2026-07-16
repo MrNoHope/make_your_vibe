@@ -1,0 +1,59 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function changedOnly(keys) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys);
+    }
+
+    match /users/{userId}/{document=**} {
+      allow read, write: if signedIn()
+        && request.auth.uid == userId;
+    }
+
+    match /sharedAlbums/{shareId} {
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && request.resource.data.ownerId == request.auth.uid;
+      allow update: if signedIn()
+        && (
+          resource.data.ownerId == request.auth.uid
+          || changedOnly([
+            'viewCount',
+            'importCount',
+            'favoriteCount',
+            'inviteCount',
+            'lastAccessedAt',
+            'updatedAt'
+          ])
+        );
+      allow delete: if signedIn()
+        && resource.data.ownerId == request.auth.uid;
+    }
+
+    match /sharedAlbumInvites/{inviteId} {
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.shareId is string
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid)/sharedAlbums/$(request.resource.data.shareId))
+        && get(/databases/$(database)/documents/sharedAlbums/$(request.resource.data.shareId)).data.active == true;
+      allow update: if signedIn()
+        && changedOnly([
+          'openCount',
+          'lastOpenedAt',
+          'updatedAt'
+        ]);
+      allow delete: if signedIn()
+        && resource.data.createdBy == request.auth.uid;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

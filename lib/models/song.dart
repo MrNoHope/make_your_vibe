@@ -6,6 +6,9 @@ class Song {
   final String coverUrl;
   final Duration duration;
   final String streamUrl;
+  final String databaseId;
+  final String sourceType;
+  final String sourceId;
 
   const Song({
     required this.id,
@@ -15,9 +18,32 @@ class Song {
     this.coverUrl = '',
     this.duration = Duration.zero,
     this.streamUrl = '',
+    this.databaseId = '',
+    this.sourceType = '',
+    this.sourceId = '',
   });
 
   bool get hasStream => streamUrl.trim().isNotEmpty;
+
+  bool get isYoutube => sourceType == 'youtube';
+
+  bool get isOnline =>
+      sourceType.trim().isNotEmpty &&
+      sourceId.trim().isNotEmpty &&
+      sourceType != 'upload';
+
+  String get storedId {
+    final cleanDatabaseId = databaseId.trim();
+    return cleanDatabaseId.isEmpty ? id.trim() : cleanDatabaseId;
+  }
+
+  String get onlineSourceId {
+    final cleanSourceId = sourceId.trim();
+    if (cleanSourceId.isNotEmpty) {
+      return cleanSourceId;
+    }
+    return id.trim();
+  }
 
   String get durationText {
     final seconds = duration.inSeconds;
@@ -32,6 +58,32 @@ class Song {
     return '$minutes:${remain.toString().padLeft(2, '0')}';
   }
 
+  Song copyWith({
+    String? id,
+    String? title,
+    String? artist,
+    String? album,
+    String? coverUrl,
+    Duration? duration,
+    String? streamUrl,
+    String? databaseId,
+    String? sourceType,
+    String? sourceId,
+  }) {
+    return Song(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      artist: artist ?? this.artist,
+      album: album ?? this.album,
+      coverUrl: coverUrl ?? this.coverUrl,
+      duration: duration ?? this.duration,
+      streamUrl: streamUrl ?? this.streamUrl,
+      databaseId: databaseId ?? this.databaseId,
+      sourceType: sourceType ?? this.sourceType,
+      sourceId: sourceId ?? this.sourceId,
+    );
+  }
+
   factory Song.fromJson(Map<String, dynamic> json) {
     return Song(
       id: '${json['id'] ?? ''}',
@@ -43,7 +95,25 @@ class Song {
         seconds: _toInt(json['durationSeconds'] ?? json['duration']),
       ),
       streamUrl: '${json['streamUrl'] ?? ''}',
+      databaseId: '${json['databaseId'] ?? json['dbId'] ?? ''}',
+      sourceType: '${json['sourceType'] ?? ''}',
+      sourceId: '${json['sourceId'] ?? ''}',
     );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'title': title,
+      'artist': artist,
+      'album': album,
+      'coverUrl': coverUrl,
+      'durationSeconds': duration.inSeconds,
+      'streamUrl': streamUrl,
+      'databaseId': databaseId,
+      'sourceType': sourceType,
+      'sourceId': sourceId,
+    };
   }
 
   static int _toInt(dynamic value) {

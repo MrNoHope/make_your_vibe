@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'controllers/vibe_controller.dart';
 import 'core/app_language.dart';
@@ -6,6 +7,7 @@ import 'core/app_theme.dart';
 import 'screens/auth/auth_screen.dart';
 import 'screens/main/main_shell.dart';
 import 'screens/splash_screen.dart';
+import 'services/user_gateway.dart';
 
 class MakeYourVibeApp extends StatefulWidget {
   const MakeYourVibeApp({super.key});
@@ -25,6 +27,7 @@ class _MakeYourVibeAppState extends State<MakeYourVibeApp> {
   @override
   void initState() {
     super.initState();
+    _syncSystemChrome();
     boot();
   }
 
@@ -33,9 +36,20 @@ class _MakeYourVibeAppState extends State<MakeYourVibeApp> {
 
     if (!mounted) return;
 
+    final user = await _loadCurrentUser();
+
     setState(() {
       loading = false;
+      loggedIn = user != null;
     });
+  }
+
+  Future<Object?> _loadCurrentUser() async {
+    try {
+      return await userGateway.getCurrentUser();
+    } catch (_) {
+      return null;
+    }
   }
 
   void enterApp() {
@@ -44,18 +58,32 @@ class _MakeYourVibeAppState extends State<MakeYourVibeApp> {
     });
   }
 
-  void logout() {
-    controller.reset();
+  Future<void> logout() async {
+    await controller.reset();
+    await userGateway.logout();
 
     setState(() {
       loggedIn = false;
     });
   }
 
+  @override
+  void dispose() {
+    controller.dispose();
+    super.dispose();
+  }
+
   void setDarkMode(bool value) {
+    _syncSystemChrome(value);
     setState(() {
       darkMode = value;
     });
+  }
+
+  void _syncSystemChrome([bool? value]) {
+    SystemChrome.setSystemUIOverlayStyle(
+      AppTheme.systemOverlayStyle(value ?? darkMode),
+    );
   }
 
   void toggleLanguage() {
@@ -66,23 +94,30 @@ class _MakeYourVibeAppState extends State<MakeYourVibeApp> {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Make Your Vibe',
-      debugShowCheckedModeBanner: false,
-      theme: darkMode ? AppTheme.dark() : AppTheme.light(),
-      home: loading
-          ? const SplashScreen()
-          : loggedIn
-          ? MainShell(
-        controller: controller,
-        onLogout: logout,
-        darkMode: darkMode,
-        onDarkModeChanged: setDarkMode,
-        language: language,
-        onLanguageChanged: toggleLanguage,
-      )
-          : AuthScreen(
-        onAuthenticated: enterApp,
+    final theme = darkMode ? AppTheme.dark() : AppTheme.light();
+
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: AppTheme.systemOverlayStyle(darkMode),
+      child: MaterialApp(
+        title: 'Make Your Vibe',
+        debugShowCheckedModeBanner: false,
+        theme: theme,
+        home: loading
+            ? const SplashScreen()
+            : loggedIn
+                ? MainShell(
+                    controller: controller,
+                    onLogout: () {
+                      logout();
+                    },
+                    darkMode: darkMode,
+                    onDarkModeChanged: setDarkMode,
+                    language: language,
+                    onLanguageChanged: toggleLanguage,
+                  )
+                : AuthScreen(
+                    onAuthenticated: enterApp,
+                  ),
       ),
     );
   }

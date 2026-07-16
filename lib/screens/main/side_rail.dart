@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../../core/app_colors.dart';
-import '../../widgets/app_logo.dart';
 
 class SideRail extends StatelessWidget {
   final int currentIndex;
@@ -15,27 +14,30 @@ class SideRail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final iconColor = isDark ? AppColors.soft : AppColors.lightSoft;
     final items = [
       _RailItem(Icons.home_rounded, 'Music'),
-      _RailItem(Icons.graphic_eq_rounded, 'Sound'),
-      _RailItem(Icons.tune_rounded, 'Mixer'),
-      _RailItem(Icons.search_rounded, 'Search'),
-      _RailItem(Icons.library_music_rounded, 'Library'),
-      _RailItem(Icons.settings_rounded, 'Settings'),
-      _RailItem(Icons.person_rounded, 'Profile'),
+      _RailItem(Icons.tune_rounded, 'Sound'),
+      _RailItem(Icons.library_music_rounded, 'Library', pageIndex: 3),
     ];
+    const profileItem = _RailItem(
+      Icons.person_rounded,
+      'Hồ sơ',
+      pageIndex: 4,
+    );
 
     return Container(
       width: 54,
-      color: AppColors.background,
+      color: theme.scaffoldBackgroundColor,
       child: Column(
         children: [
-          const SizedBox(height: 12),
-          const AppLogo(size: 26),
-          const SizedBox(height: 22),
+          const SizedBox(height: 20),
           ...List.generate(items.length, (i) {
             final item = items[i];
-            final selected = i == currentIndex;
+            final pageIndex = item.pageIndex ?? i;
+            final selected = pageIndex == currentIndex;
 
             return Padding(
               padding: const EdgeInsets.only(bottom: 12),
@@ -43,7 +45,7 @@ class SideRail extends StatelessWidget {
                 message: item.label,
                 child: InkWell(
                   borderRadius: BorderRadius.circular(18),
-                  onTap: () => onChanged(i),
+                  onTap: () => onChanged(pageIndex),
                   child: Container(
                     width: 36,
                     height: 36,
@@ -53,7 +55,7 @@ class SideRail extends StatelessWidget {
                     ),
                     child: Icon(
                       item.icon,
-                      color: selected ? Colors.black : AppColors.soft,
+                      color: selected ? Colors.black : iconColor,
                       size: 19,
                     ),
                   ),
@@ -62,20 +64,33 @@ class SideRail extends StatelessWidget {
             );
           }),
           const Spacer(),
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              border: Border.all(color: AppColors.line),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.cloud_off_rounded,
-              size: 17,
-              color: AppColors.muted,
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Tooltip(
+              message: profileItem.label,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(18),
+                onTap: () => onChanged(profileItem.pageIndex!),
+                child: Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: currentIndex == profileItem.pageIndex
+                        ? AppColors.green
+                        : Colors.transparent,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    profileItem.icon,
+                    color: currentIndex == profileItem.pageIndex
+                        ? Colors.black
+                        : iconColor,
+                    size: 19,
+                  ),
+                ),
+              ),
             ),
           ),
-          const SizedBox(height: 12),
         ],
       ),
     );
@@ -85,6 +100,7 @@ class SideRail extends StatelessWidget {
 class _RailItem {
   final IconData icon;
   final String label;
+  final int? pageIndex;
 
-  const _RailItem(this.icon, this.label);
+  const _RailItem(this.icon, this.label, {this.pageIndex});
 }

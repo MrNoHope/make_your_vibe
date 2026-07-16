@@ -3,6 +3,13 @@ import 'package:flutter/material.dart';
 class AppColors {
   static const background = Color(0xFF05070D);
   static const background2 = Color(0xFF08111C);
+  static const lightBackground = Color(0xFFF4F8F3);
+  static const lightBackground2 = Color(0xFFFFFFFF);
+  static const lightPanel = Color(0xFFFFFFFF);
+  static const lightText = Color(0xFF101610);
+  static const lightSoft = Color(0xFF4F5C50);
+  static const lightMuted = Color(0xFF7B887C);
+  static const lightLine = Color(0xFFD4DED4);
 
   static const panel = Color(0xFF101A17);
   static const panel2 = Color(0xFF121C2D);

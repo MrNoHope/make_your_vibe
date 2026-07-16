@@ -53,14 +53,14 @@ class TopBar extends StatelessWidget {
 
 class SectionHeader extends StatelessWidget {
   final String title;
-  final String action;
-  final VoidCallback onTap;
+  final String? action;
+  final VoidCallback? onTap;
 
   const SectionHeader({
     super.key,
     required this.title,
-    required this.action,
-    required this.onTap,
+    this.action,
+    this.onTap,
   });
 
   @override
@@ -76,24 +76,25 @@ class SectionHeader extends StatelessWidget {
             ),
           ),
         ),
-        InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(99),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 8,
-              vertical: 5,
-            ),
-            child: Text(
-              action,
-              style: const TextStyle(
-                color: AppColors.green,
-                fontSize: 11,
-                fontWeight: FontWeight.w900,
+        if (action != null && onTap != null)
+          InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(99),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 8,
+                vertical: 5,
+              ),
+              child: Text(
+                action!,
+                style: const TextStyle(
+                  color: AppColors.green,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                ),
               ),
             ),
           ),
-        ),
       ],
     );
   }
@@ -132,19 +133,23 @@ class SmallGreenButton extends StatelessWidget {
   }
 }
 
-class AlbumBox extends StatelessWidget {
+class CoverImage extends StatelessWidget {
+  final String url;
   final double size;
+  final double radius;
 
-  const AlbumBox({
+  const CoverImage({
     super.key,
+    required this.url,
     required this.size,
+    this.radius = 18,
   });
 
   @override
   Widget build(BuildContext context) {
-    final child = Container(
+    final fallback = Container(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(radius),
         gradient: AppColors.darkGradient,
         border: Border.all(color: AppColors.line),
       ),
@@ -157,6 +162,30 @@ class AlbumBox extends StatelessWidget {
       ),
     );
 
+    final child = url.trim().isEmpty
+        ? fallback
+        : ClipRRect(
+            borderRadius: BorderRadius.circular(radius),
+            child: Image.network(
+              url,
+              fit: BoxFit.cover,
+              cacheWidth: size == double.infinity
+                  ? null
+                  : (size * MediaQuery.devicePixelRatioOf(context)).ceil(),
+              cacheHeight: size == double.infinity
+                  ? null
+                  : (size * MediaQuery.devicePixelRatioOf(context)).ceil(),
+              loadingBuilder: (context, child, loadingProgress) {
+                if (loadingProgress == null) {
+                  return child;
+                }
+
+                return fallback;
+              },
+              errorBuilder: (_, __, ___) => fallback,
+            ),
+          );
+
     if (size == double.infinity) {
       return child;
     }
@@ -166,6 +195,20 @@ class AlbumBox extends StatelessWidget {
       height: size,
       child: child,
     );
+  }
+}
+
+class AlbumBox extends StatelessWidget {
+  final double size;
+
+  const AlbumBox({
+    super.key,
+    required this.size,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return CoverImage(url: '', size: size);
   }
 }
 
