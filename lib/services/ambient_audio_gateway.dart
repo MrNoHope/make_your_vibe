@@ -82,6 +82,7 @@ class AmbientAudioGateway extends ChangeNotifier {
     ),
   ];
 
+
   List<AmbientLayer> get layers => List.unmodifiable(_layers);
 
   double get masterVolume => _masterVolume;

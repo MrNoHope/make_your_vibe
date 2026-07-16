@@ -122,6 +122,7 @@ class VibeController extends ChangeNotifier {
     unawaited(_restoreHistories());
   }
 
+
   Future<void> loadHomeSongs() async {
     if (loadingHome || homeSongs.isNotEmpty) {
       return;

@@ -16,6 +16,7 @@ class BackgroundAudioGateway {
     final session = await AudioSession.instance;
     await session.configure(const AudioSessionConfiguration.music());
 
+
     _initialized = true;
   }
 

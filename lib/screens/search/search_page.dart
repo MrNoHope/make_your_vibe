@@ -278,6 +278,7 @@ class _SearchPageState extends State<SearchPage> {
         },
       );
 
+
       if (message != null && message.isNotEmpty) {
         showSnack(message);
       }
